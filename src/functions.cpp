@@ -3,7 +3,7 @@
 
 //#include <avr/io.h>
 //#define __DELAY_BACKWARD_COMPATIBLE__
-//#include <util/delay.h>
+#include <util/delay.h>
 
 //#include <avr/interrupt.h>
 //#include <avr/pgmspace.h>
@@ -29,6 +29,7 @@
 void _mydelay(uint8_t _delay) {
 	for (uint8_t i=0;i < _delay;i++ ){ 
 		_delay_ms(40);
+		//delay(40);
 	}
 
 }
