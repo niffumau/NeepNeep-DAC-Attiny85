@@ -1,289 +1,256 @@
-/*
- *
- * 
- * https://github.com/pedroliska/ATtiny85/blob/master/watchdog-wake/watchdog-wake.ino
- * 
- * 
- * Power Draw:
- * on my multimeter it appears to draw max of 27.8mA when making noise
- * maybe 10mA when it wakes up and less than 10mA when asleep.
- *  
- */
+/* Four Sample Player
 
-
-
+   David Johnson-Davies - www.technoblogy.com - 21st January 2020
+   ATtiny85 @ 8 MHz (internal oscillator; BOD disabled)
+      
+   CC BY 4.0
+   Licensed under a Creative Commons Attribution 4.0 International license: 
+   http://creativecommons.org/licenses/by/4.0/
+*/
 #include <Arduino.h>
-#include <avr/io.h>
-#define __DELAY_BACKWARD_COMPATIBLE__
-#include <util/delay.h>
-
-#include <avr/interrupt.h>
-#include <avr/pgmspace.h>
-
-#include <avr/interrupt.h>
-
-//#include <avr/power.h>
-//#include <avr/sleep.h>
-
-//#include <math.h>		// fuck me this can use up a lot of flash
-//#include <avr/wdt.h>
-
-#ifndef ARDUINO
-#include <stdint.h>
-#include "millionUtil.h"         //not needed if compiled with Arduino & Arduino-Tiny
-#endif
-
-#include "main.h"
-#include "functions-sleep.h"
-#include "functions-led.h"
-#include "functions.h"
-#include "tunes.h"
-
-//int REGULAR_HI_MS = 100;        // was 800
-//int WAKE_INDICATOR_HI_MS = 0; //200;
-//int INITIAL_BEEP_COUNT = 3;   // number of "test" beeps before we go into the real loop
-
-
-long countSleep=0;
-long countSleepLimit=0;
-
-
-
-/* We then just need a table of divisors for the notes within one octave. To calculate the divisor for a given note frequency we first work out:
-
-divisor = clock / frequency
-
-For example, C4 (middle C) is 261.63Hz, so we get:
-
-divisor = 1000000 / 261.63
-
-in our case thats
-divisor = 1 200 000 / 261.63 = 4586.62
-but thats way more than 256, so divide by 2
-4586.62 / 2 = 2293.3 
-too large, divide by 2 again
-1146, too large again, divide by 2
-too large..
-options are 1, 8, 64,
-divide by 8, and its 71.6
-*/
-
-
-
-/*******************************************************************************************************************************
- *  Tone Functions
- *******************************************************************************************************************************/
-/***************************************************
- *  
- ***************************************************
- * 
- */
-#ifndef IS_BUZZER	
-static void _setuptone(void){
-
-	pinMode(BUZZER_PIN, OUTPUT);
-	//PORTB = 0b00000000; // set all pins to LOW
-
-	// Set Timer Mode to Fast PWM
-	// Below, it looks like they are just setting WGM01 to 1,, the manual seems to say that WGM01 and WGM00 should be 1 ?
-
-
-
-	// fucking really doesn't make sense
-
-	// notes https://forum.arduino.cc/t/attiny13a-fast-pwm/855861
-	/* When WGM02, WGM01, WGM00 is set, the TOP value of the timer is controlled by OCRA.
-	That is, the timer count increments from 0 to the value of OCR2A and returns to 0.
-	This allows you to control the frequency, but OCRB must be used for waveform output.
-	The OCRB value must be between 0 and OCRA.
-	Because it is the PWM duty. */
-
-/*
-	// Following that
-	TCCR0A |= ((1<<WGM02)|(1<<WGM01)|(1<<WGM00));		// this should really be mode 7
-	TCCR0A |= ((1<<WGM01)|(1<<WGM00)); // set fast PWM mode 7 - page 79 - uses OCR0A for TOP, PWM signal comes out on OCR0B
-	TCCR0A |= (1<<COM0B1)|(1<<COM0B0); // define inverted
-*/
-	//	TCCR0A |= _BV(COM0B0); // connect PWM pin to Channel A of Timer0... PB1 ?
-	TCCR0A |= ((1<<WGM02)|(1<<WGM01)|(1<<WGM00)|(1<<COM0B1)|(1<<COM0B0)|_BV(COM0B0));	
-
-
-
-	TCCR0B |= (1<<WGM02); // to use TOP as OCR0A rather than 0xFF
-
-
-	// So what we have above is.. pretty simply put...
-
-
-	//TCCR0A |= ((1<<WGM02)|(1<<WGM01)|(1<<WGM00));	// can we combine all the ones above???
-
-
-	// Select which pin connects to Timer 0
-	//TCCR0A |= (1<<COM0A0); // connect PWM pin to Channel A of Timer0
-
-	// So the COM0B1 and COM0B0 contyrol what it does... 
-	// both 0 means disconnected
-
-
-	
-
-
-
-
-}
-#endif
-
-/***************************************************
- *  Stop tones
- ***************************************************
- * 
- */
-#ifndef IS_BUZZER	
-static void stop(void)
-{
-	TCCR0B &= ~((1<<CS02)|(1<<CS01)|(1<<CS00)); // stop the timer.... This should absoloutly stop the timer
-  	TCCR0A = 0; // stop the counter    // fuck knows why... fuck knos why the other one dind't work				////////////////disable this if it stops working
-
-	digitalWrite(BUZZER_PIN, LOW); // set the output to low
-}
-#else	
-static void stop(void)
-{
-	TCCR0B &= ~((1<<CS02)|(1<<CS01)|(1<<CS00)); // stop the timer.... This should absoloutly stop the timer
-  	TCCR0A = 0; // stop the counter    // fuck knows why... fuck knos why the other one dind't work				////////////////disable this if it stops working
-	digitalWrite(BUZZER_PIN, LOW); // set the output to low	
-}
-#endif
-
-
-
-
-
-
-//EMPTY_INTERRUPT(ADC_vect)		//Discard adc interrupt	// i'm not sure what this is for?
-ISR(WDT_vect) {}				// without this it reboots
-
-
-
-
-
-/***************************************************
- *  Play Tones
- ***************************************************
- * 
- */
-void _playtones(void){
-//	led_status(4,1);
-
-#ifdef IS_BUZZER	
-	pinMode(BUZZER_PIN, OUTPUT);
-
-	for	(uint8_t n=0;n<2;n++) {
-		for (int i = 0; i < 2; i++) {
-			led_on(BUZZER_PIN);
-			_delay_ms(30);
-			led_off(BUZZER_PIN);
-			_delay_ms(10);
-		}
-		_delay_ms(40);
-	}
-
-#else						// Otherwise we are using PWM
-	_setuptone();			// Set up the attiny to play tones
-
-	//playtune_melody(tune_test,sizeof(tune_test)/2);
-	//playtune_melody(tune_iphone,sizeof(tune_iphone)/2);
-//	playtune_melody_new(tune_nokia_rep);
-	//playtune_melody_new(tune_iphone);
-
-
-	uint16_t decision = _random( 0, 7);		// pick one tune
-	led_status(3,decision);	// check random numbers
-
-/*	if (decision < 2 ) playtune_melody(tune_nokia,sizeof(tune_nokia)/2);
-	//else if (decision < 5) playtune_melody(tune_happybirthday,sizeof(tune_happybirthday)/2);
-	else if (decision < 5) playtune_melody(tune_iphone,sizeof(tune_iphone)/2);
-	else playtune_melody(tune_sms,sizeof(tune_sms)/2);*/
-
-	if (decision < 2 ) playtune_melody_new(tune_nokia_new);
-	else if (decision < 5) playtune_melody_new(tune_iphone_new);
-	else playtune_melody_new(tune_sms_new);
-
-	stop();
-
-#endif
-
-}
-
-
-
-/*******************************************************************************************************************************
- *  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP  SETUP
- *******************************************************************************************************************************/
-
-const uint8_t _checkvariable PROGMEM = 5;
-
-const uint8_t tune_test_rep[] PROGMEM = {
-  (uint8_t) 2,
-  NOTE_6E,1, NOTE_6D,1, NOTE_5FS,2, NOTE_5GS,1,
-  NOTE_6CS,1, NOTE_5B,1, NOTE_5D,2, NOTE_5E,1,
-  NOTE_5B,1, NOTE_5A,1, NOTE_5CS,2, NOTE_5E,2, NOTE_5A,2
-
+#include <avr/sleep.h>
+#include <avr/wdt.h>  // For Watchdog Timer
+#include <stdlib.h>   // For rand() / srand()
+
+// Winbond DataFlash commands
+#define PAGEPROG      0x02
+#define READSTATUS    0x05
+#define READDATA      0x03
+#define WRITEENABLE   0x06
+#define CHIPERASE     0x60
+#define READID        0x90
+#define POWERDOWN     0xB9
+#define RELEASEPD     0xAB
+
+// ATtiny85 pins used for dataflash
+const int sck = 2, miso = 1, mosi = 0, cs = 3;
+const int speaker = 4;
+
+class DF {
+  public:
+    boolean Setup();
+    void BeginRead(uint32_t addr);
+    void BeginWrite(void);
+    uint8_t ReadByte(void);
+    void WriteByte(uint8_t data);
+    void EndRead(void);
+    void EndWrite(void);
+    void PowerDown(boolean);
+  private:
+    unsigned long addr;
+    uint8_t Read(void);
+    void Write(uint8_t);
+    void Busy(void);
+    void WriteEnable(void);
 };
 
+boolean DF::Setup () {
+  uint8_t manID, devID;
+  pinMode(cs, OUTPUT); digitalWrite(cs, HIGH); 
+  pinMode(sck, OUTPUT);
+  pinMode(mosi, OUTPUT);
+  pinMode(miso, INPUT);
+  digitalWrite(sck, LOW); digitalWrite(mosi, HIGH);
+  delay(1);
+  digitalWrite(cs, LOW);
+  delay(100);
+  Write(READID); Write(0);Write(0);Write(0);
+  manID = Read();
+  devID = Read();
+  digitalWrite(cs, HIGH);
+  return (devID == 0x15); // Found correct device
+}
+
+void DF::Write (uint8_t data) {
+  uint8_t bit = 0x80;
+  while (bit) {
+    if (data & bit) PORTB = PORTB | (1<<mosi);
+    else PORTB = PORTB & ~(1<<mosi);
+    PINB = 1<<sck;                        // sck high
+    bit = bit>>1;
+    PINB = 1<<sck;                        // sck low
+  }
+}
+
+void DF::Busy () {
+  digitalWrite(cs, 0);
+  Write(READSTATUS);
+  while (Read() & 1 != 0);
+  digitalWrite(cs, 1);
+}
+
+void DF::WriteEnable () {
+  digitalWrite(cs, 0);
+  Write(WRITEENABLE);
+  digitalWrite(cs, 1);
+}
+
+void DF::PowerDown (boolean on) {
+  digitalWrite(cs, 0);
+  if (on) Write(POWERDOWN); else Write(RELEASEPD);
+  digitalWrite(cs, 1);
+}
+
+void DF::BeginRead (uint32_t start) {
+  addr = start;
+  digitalWrite(cs, 0);
+  Write(READDATA);
+  Write(addr>>16);
+  Write(addr>>8);
+  Write(addr);
+}
+
+uint8_t DF::Read () {
+  uint8_t data = 0;
+  uint8_t bit = 0x80;
+  while (bit) {
+    PINB = 1<<sck;                        // sck high
+    if (PINB & 1<<miso) data = data | bit;
+    PINB = 1<<sck;                        // sck low
+    bit = bit>>1;
+  }
+  return data;
+}
+
+void DF::EndRead(void) {
+  digitalWrite(cs, 1);
+}
+
+void DF::BeginWrite () {
+  addr = 0;
+  // Erase DataFlash
+  WriteEnable();
+  digitalWrite(cs, 0);
+  Write(CHIPERASE);
+  digitalWrite(cs, 1);
+  Busy();
+}
+
+uint8_t DF::ReadByte () {
+  return Read();
+}
+
+void DF::WriteByte (uint8_t data) {
+  // New page
+  if ((addr & 0xFF) == 0) {
+    digitalWrite(cs, 1);
+    Busy();
+    WriteEnable();
+    digitalWrite(cs, 0);
+    Write(PAGEPROG);
+    Write(addr>>16);
+    Write(addr>>8);
+    Write(0);
+  }
+  Write(data);
+  addr++;
+}
+
+void DF::EndWrite (void) {
+  digitalWrite(cs, 1);
+  Busy();
+}
+
+DF DataFlash;
+
+// Audio player **********************************************
+
+volatile boolean StayAwake;
+
+//volatile int Play = 1;
+volatile int Play;
+volatile uint32_t Count;
+uint32_t Sizes[5] = { 0, 2486, 5380, 10291, 1415837 };
+
+
+ISR (TIMER0_COMPA_vect) {
+  char sample = DataFlash.ReadByte();
+  OCR1B = sample;
+  Count--;
+  if (Count == 0) {
+    DataFlash.EndRead();
+    TIMSK = 0;
+  }
+}
+/*
+// Sample interrupt
+ISR (TIMER0_COMPA_vect) {
+  char sample = DataFlash.ReadByte();
+  OCR1B = sample;
+  // End of data? Go to sleep
+  Count--;
+  if (Count == 0) {
+    DataFlash.EndRead();
+    TIMSK = 0;                            // Turn off interrupt
+    StayAwake = false;
+  }
+}
+
+/*
+// Pin change interrupt
+ISR (PCINT0_vect) {
+  int Buttons = PINB;
+  if ((Buttons & 1<<miso) == 0) Play = 1;
+  else if ((Buttons & 1<<sck) == 0) Play = 2;
+  else if ((Buttons & 1<<mosi) == 0) Play = 3;
+  else Play = 0;
+  GIMSK = 0;                              // Disable interrupts
+}*/
+
+// Watchdog ISR - just wake up, no action needed
+ISR(WDT_vect) { }
 
 void setup() {
-	// setup random shit
-	random_init(); // initialize 16 bit seed
+  // Enable 64 MHz PLL and use as source for Timer1
+  PLLCSR = 1<<PCKE | 1<<PLLE;
 
-	pinMode(BUZZER_PIN, OUTPUT);
+  // Set up Timer/Counter1 for PWM output
+  TIMSK = 0;                              // Timer interrupts OFF
+  TCCR1 = 1<<CS10;                        // 1:1 prescale
+  GTCCR = 1<<PWM1B | 2<<COM1B0;           // PWM B, clear on match
+  OCR1B = 128;                            // 50% duty at start
 
-	led_setup();
-	led_status(1,1);
+  // Set up Timer/Counter0 for 8kHz interrupt to output samples.
+  TCCR0A = 3<<WGM00;                      // Fast PWM
+  TCCR0B = 1<<WGM02 | 2<<CS00;            // 1/8 prescale
+  OCR0A = 124;                            // Divide by 1000
 
-
-	// check reading a single value
-//	uint8_t _length = pgm_read_byte(&tune_test_rep);
-	//uint8_t _length = pgm_read_byte(&_checkvariable);	// WORKS
-//	led_status(2,_length);  return;   // debug
-
-
-	_playtones();
-	stop();
-
+  //set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  ADCSRA = ADCSRA & ~(1<<ADEN);           // Disable ADC to save power
+  PCMSK = 1<<mosi | 1<<miso | 1<<sck;     // Set up pin-change interrupts
 }
-
-
-/*******************************************************************************************************************************
- *  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP  LOOP
- *******************************************************************************************************************************/
 
 void loop() {
+  pinMode(speaker, OUTPUT);
+  DataFlash.Setup();
+  DataFlash.PowerDown(false);
 
-	led_blink(LED_GREEN,1);
-
-#ifdef BEEP_EVERY_CYCLE
-	countSleep = countSleepLimit;
-#else
-	countSleep++;
-#endif
-
-	if ( !(countSleep < countSleepLimit) )	{
-		if (countSleepLimit != 0) {		// if its not our first run
-			_playtones();
-		} else {
-			//led_status(1,2);
-		}
-
-		countSleep = 0;	// reset countsleep
-#ifdef FIXED_INTERVAL
-		countSleepLimit = FIXED_INTERVAL
-#else
-		countSleepLimit = _random( RANDOM_SLEEP_MIN*SLEEP_FACTOR, RANDOM_SLEEP_MAX*SLEEP_FACTOR + 1) ;
-#endif
-		//check_random(countSleepLimit);
-	}
-
-	system_sleep(SLEEP_8SEC);
-	
+  while (true) {  // Infinite loop for continuous play
+    Count = Sizes[1] - Sizes[0];  // First tone size (2486 samples)
+    DataFlash.BeginRead(Sizes[0]);  // First tone start
+    TIMSK = 1<<OCIE0A;  // Enable interrupt
+    while (Count > 0);  // Wait for end (TIMER0 ISR decrements)
+    TIMSK = 0;  // Disable interrupt
+  }
 }
+/*
+void loop() {
+  pinMode(speaker, OUTPUT);
+  DataFlash.Setup();
+  DataFlash.PowerDown(false);
+  StayAwake = true;
+  Count = Sizes[Play+1] - Sizes[Play];
+  DataFlash.BeginRead(Sizes[Play]);
+  TIMSK = 1<<OCIE0A;                      // Enable compare match
+  while (StayAwake);
+  DataFlash.PowerDown(true);
+  // Set up pin-change interrupts on PB0, PB1, and PB2
+  pinMode(mosi, INPUT_PULLUP); pinMode(miso, INPUT_PULLUP); pinMode(sck, INPUT_PULLUP);
+  pinMode(speaker, INPUT);                // Avoid click
+  GIFR = 1<<PCIF;                         // Clear flag
+  GIMSK = 1<<PCIE;                        // Enable interrupts
+  sleep_enable();
+  sleep_cpu();
+  // Continue after pin-change interrupt
+}*/
+
