@@ -30,3 +30,6 @@ uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
                       32000,    // Chunk 3: seconds 5-6
                       48000,    // Chunk 4: seconds 7-8
                       0 };      // End (unused)
+
+
+                      assumes standard 44-byte PCM headers as per your Audacity workflow; test with hexdump -C output.bin | head for clean 8-bit samples post-header
