@@ -25,3 +25,8 @@ and spit out the start location and length of the sounds that have been put in t
 
 new tone 3A2E4 length
 
+uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
+                      16000,    // Chunk 2: seconds 3-4  
+                      32000,    // Chunk 3: seconds 5-6
+                      48000,    // Chunk 4: seconds 7-8
+                      0 };      // End (unused)
