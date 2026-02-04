@@ -39,11 +39,11 @@ volatile int Play;
 volatile uint32_t Count;
 //uint32_t Sizes[5] = { 0, 2486, 5380, 10291, 1415837 };
 
-uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
+/*uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
                       4000,    // Chunk 2: seconds 3-4  
                       8000,    // Chunk 3: seconds 5-6
                       16000,    // Chunk 4: seconds 7-8
-                      32000 };      // End (unused)
+                      32000 };      // End (unused)*/
 
 
 /* samples
@@ -56,10 +56,16 @@ Sample	Samples	Duration
 ​3	4911	0.61s 
 ​4	1,405,546	175.69s 
 ​
+Processing come_get_some_x.wav: start byte 0, length 11732 bytes
+Processing cough_x.wav: start byte 11732, length 8594 bytes
+Processing dentist_drill.wav: start byte 20326, length 17376 bytes
+Processing disconnect_11.wav: start byte 37702, length 7424 bytes
+All samples concatenated into output.bin (total size: 176 bytes)
+
 
 */
-
-
+//uint32_t Sizes[8] = { 0,11732,19156,49464,71274,116518,140082,190308 };
+uint32_t Sizes[10] = { 0,11732,19156,25646,33200,63508,85318,130562,154126,204352 };
 
 class DF {
   public:
@@ -300,8 +306,11 @@ void play_random_sample() {
   StayAwake = true;
 
   // Pick random sample (1-4)
-  Play = rand() % 4 + 1;
+  //Play = rand() % 4 + 1;
   //Play = 1;   // force play to 1
+  uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
+  Play = rand() % num_samples + 1;  // Picks 1-4 uniformly
+
 
   StayAwake = true;
   Count = Sizes[Play] - Sizes[Play-1];
