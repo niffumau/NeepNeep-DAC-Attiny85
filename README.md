@@ -1,10 +1,19 @@
 ## General
 
-This is the one I am actually using
-just update to find where its saving it lol
+This is based on the ATtiny85 and the W25Q32 flash chip.
 
-This is the one I am actually using
-just update to find where its saving it lol
+ATtiny85:
+  - 8 KB flash
+
+W25Q32:
+  - I am using the  W25Q32JVSS variant  
+  - Capacity: 32 Mbit / 4 MByte, organized in 16,384 pages of 256 bytes each.
+  - Voltage: 2.7–3.6V operation, <1 µA power-down current.
+  - Interface: SPI (standard, Dual/Quad I/O), up to 133 MHz clock (66 MB/s read).
+  - Erase: Uniform 4 KB sectors, 32/64 KB blocks; >100K program/erase cycles, 20+ year retention.
+  - Temp Range: -40°C to +85°C (fits Perth's climate for outdoor IoT/DIY).
+
+I am a little concerned that i'm programming the ATtiny85 with 5V rail, apparenlty can program it with a 3.3v programmer which is probaly what i shoudl be looking into.
 
 
 ## Hardware
