@@ -13,16 +13,9 @@
 #include <stdlib.h>   // For rand() / srand()
 #include <util/delay.h>  // _delay_us()
 
+#include "main.h"
 
-// Winbond DataFlash commands
-#define PAGEPROG      0x02
-#define READSTATUS    0x05
-#define READDATA      0x03
-#define WRITEENABLE   0x06
-#define CHIPERASE     0x60
-#define READID        0x90
-#define POWERDOWN     0xB9
-#define RELEASEPD     0xAB
+
 
 // ATtiny85 pins used for dataflash
 //const int sck = 2, miso = 1, mosi = 0, cs = 3;
@@ -196,14 +189,19 @@ void DF::EndWrite (void) {
 DF DataFlash;
 
 
-
-
+/***************************************************
+ *  ISR (TIMER0_COMPA_vect)
+ ***************************************************
+ * 
+ */
 ISR (TIMER0_COMPA_vect) {
-  /*static uint8_t dbg=0;
-  PINB ^= 1<<PB3;  // Toggle PB3 (pin2) as scope probe*/
+  /*char sample = DataFlash.ReadByte();
+  OCR1B = sample;*/
+  /*uint8_t raw = DataFlash.ReadByte();
+  OCR1B = raw >> 1;  // 0-127: ~0-1.65V pk-pk, centered ~0.8V avg (safe)*/
+  int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
+  OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
 
-  char sample = DataFlash.ReadByte();
-  OCR1B = sample;
   Count--;
   if (Count == 0) {
     DataFlash.EndRead();
@@ -212,10 +210,19 @@ ISR (TIMER0_COMPA_vect) {
   }
 }
 
+/***************************************************
+ *  Watchdog ISR
+ ***************************************************
+ * Not sure why this is required???
+ */
 // Watchdog ISR - just wake up, no action needed
 ISR(WDT_vect) { }
 
-// Add before setup() - include <util/delay.h> at top
+/***************************************************
+ *  playTestTone
+ ***************************************************
+ * 
+ */
 void playTestTone() {
   pinMode(speaker, OUTPUT);
   
@@ -310,7 +317,9 @@ void play_random_sample() {
   //Play = 1;   // force play to 1
   uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
   Play = rand() % num_samples + 1;  // Picks 1-4 uniformly
-
+  #if defined(DEBUG_FIXED_WAV)
+  Play = 1;
+  #endif
 
   StayAwake = true;
   Count = Sizes[Play] - Sizes[Play-1];
@@ -376,6 +385,12 @@ void setup() {
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
 
   TCCR0B |= 2<<CS00;              // it said to add this to the thing
+
+
+  #if defined(DEBUG_TONE)
+  playTestTone_ms_freq(50, 440);
+  #endif
+
 }
 
 
@@ -419,9 +434,14 @@ void loop() {
     sleep_cpu();
     sleep_disable();
     wdt_disable();*/
-    
+
   // Random delay 10min-4hr (75-1800 cycles of 8s)
   uint16_t cycles = (rand() % (1800 - 75 + 1)) + 75;
+
+  #if defined(DEBUG_FIXED_8S) 
+  cycles = 1;
+  #endif
+
   for(uint16_t i = 0; i < cycles; i++) {
     // Your 8s WDT sleep
     wdt_reset();
