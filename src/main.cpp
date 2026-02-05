@@ -399,7 +399,7 @@ void loop() {
     
 
 
-
+/*
     // Watchdog for first 8s sleep
     wdt_reset();
     WDTCR = (1<<WDCE) | (1<<WDE);   // Unlock
@@ -418,7 +418,21 @@ void loop() {
     sleep_enable();
     sleep_cpu();
     sleep_disable();
+    wdt_disable();*/
+    
+  // Random delay 10min-4hr (75-1800 cycles of 8s)
+  uint16_t cycles = (rand() % (1800 - 75 + 1)) + 75;
+  for(uint16_t i = 0; i < cycles; i++) {
+    // Your 8s WDT sleep
+    wdt_reset();
+    WDTCR = (1<<WDCE) | (1<<WDE);
+    WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8s
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    sleep_enable();
+    sleep_cpu();
+    sleep_disable();
     wdt_disable();
+  }    
 
     // Ready for next iteration
   }
