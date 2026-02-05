@@ -1,8 +1,16 @@
+## General
+
 This is the one I am actually using
 just update to find where its saving it lol
 
 This is the one I am actually using
 just update to find where its saving it lol
+
+
+## Hardware
+Essentiall this is a ATtiny85 with a flash chip.  The PCB design is https://gitlab.niffum.net/kicad/neepneep-dac-kicad.
+
+
 
 This was an example
 https://www.hackster.io/news/building-a-simple-audio-player-with-an-attiny85-a6b6bf635c21
@@ -10,6 +18,8 @@ https://www.hackster.io/news/building-a-simple-audio-player-with-an-attiny85-a6b
 This is the page: that it came from apparently:
 http://www.technoblogy.com/show?2XJD
 
+
+## Audio File
 setup audio as 8.000 kHz, 8-bit, Mono
  
 Length is C5C2 apparently which is 50626
@@ -33,3 +43,21 @@ uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
 
 
                       assumes standard 44-byte PCM headers as per your Audacity workflow; test with hexdump -C output.bin | head for clean 8-bit samples post-header
+
+I created a script for this, I will have to include it.
+
+
+
+## Installation/Programming
+
+I use VSCode. and the USBASP programmer.
+
+1.  For new ATtiny13a's, you will most likely have to set the fuses.
+    In VSCode, the platformio button.  Go under attiny85 > Platform > Setfuses
+
+2.  Upload the code.
+    In VSCode, the platformio button.  Go under attiny85 > General > Upload
+
+## Programming the Flash chip
+
+I use a flash chip programmer to program the chip ch341 and i use a chip to clip on the chip.  On the neepneep board i ground the ATtiny85's reset pin using a wire to jumper on the programming interface pin thing between R and G (they are next to eachother.)
