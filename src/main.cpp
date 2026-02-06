@@ -247,8 +247,11 @@ void load_sizes_from_flash(void) {
  * 
  */
 ISR (TIMER0_COMPA_vect) {
-  int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
-  OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
+  char sample = DataFlash.ReadByte();
+  OCR1B = sample;
+  // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
+  /*int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
+  OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg*/
 
   if (--Count == 0) {
     DataFlash.EndRead();
@@ -263,7 +266,27 @@ ISR (TIMER0_COMPA_vect) {
  * Not sure why this is required???
  */
 // Watchdog ISR - just wake up, no action needed
-ISR(WDT_vect) { }
+/*ISR(WDT_vect) { }*/
+
+volatile uint32_t wdt_jitter_seed = 0;
+
+ISR(WDT_vect) {
+  wdt_jitter_seed = TCNT0 ^ TCNT1;  // Capture timer state on WDT wake
+}
+
+void setup_random_seed() {
+  // Enable WDT for 16ms, let it fire once
+  wdt_reset();
+  WDTCR = (1<<WDCE) | (1<<WDE);
+  WDTCR = (1<<WDIE) | (1<<WDP0);  // 16ms interrupt
+  
+  _delay_ms(20);  // Wait for WDT ISR (uses constant!)
+  
+  wdt_disable();
+  
+  uint32_t seed = wdt_jitter_seed ^ TCNT0 ^ PINB;
+  randomSeed(seed);
+}
 
 /*******************************************************************************************************************************
  *  Play test Tones  
@@ -347,6 +370,8 @@ void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
   pinMode(speaker, INPUT);
 }
 
+//volatile uint32_t wdt_jitter_seed = 0;
+
 
 /*******************************************************************************************************************************
  *  Play Random Sample
@@ -413,6 +438,7 @@ void play_random_sample() {
 
 }
 
+
 /*******************************************************************************************************************************
  *  Setup
  *******************************************************************************************************************************/
@@ -462,9 +488,16 @@ void setup() {
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC to save power
 
   // Seed random with ADC noise (pin 5/PB2 floating or unconnected)
-  ADCSRA |= (1<<ADEN);              // Temp enable ADC
-  randomSeed(analogRead(PB4));        // Read PB2 (pin 5)
-  ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
+  //ADCSRA |= (1<<ADEN);              // Temp enable ADC
+  //randomSeed(analogRead(PB0));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
+  
+  //ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
+  //randomSeed(get_random_seed());
+  //setup_random_seed();
+  // Replace your ADC code with this:
+  /*uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
+  randomSeed(seed);*/
+  setup_random_seed();
 
   // it said to add this to the thing, not sure if it helps???
   TCCR0B |= 2<<CS00;              
