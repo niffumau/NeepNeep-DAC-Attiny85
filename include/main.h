@@ -8,11 +8,11 @@
 
 
 // Debug Parameters
-//#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
+#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
 
 //#define DEBUG_TONE  1          // debug directly with a tone
 //#define DEBUG_FIXED_WAV 1
-
+//#define DEBUG_FORCE_SIZES
 
 // Pin Definitions
 #define PIN_SPEAKER   PB4
@@ -27,7 +27,7 @@
 #define POWERDOWN     0xB9
 #define RELEASEPD     0xAB
 
-
+#define MAX_SIZES 32   // adjust to your maximum expected number (e.g. 10 samples)
 
 
 

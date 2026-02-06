@@ -14,7 +14,7 @@
 #include <util/delay.h>  // _delay_us()
 
 #include "main.h"
-
+#include "functions.h"
 
 
 // ATtiny85 pins used for dataflash
@@ -31,6 +31,8 @@ volatile boolean StayAwake = true;
 volatile int Play;
 volatile uint32_t Count;
 
+uint32_t Sizes[MAX_SIZES];
+uint8_t num_sizes = 0;
 
 //uint32_t Sizes[5] = { 0, 2486, 5380, 10291, 1415837 };
 
@@ -62,7 +64,7 @@ All samples concatenated into output.bin (total size: 176 bytes)
 //uint32_t Sizes[8] = { 0,11732,19156,49464,71274,116518,140082,190308 };
 //uint32_t Sizes[10] = { 0,11732,19156,25646,33200,63508,85318,130562,154126,204352 };
 //uint32_t Sizes[11] = { 0,11732,23464,30888,37378,44932,74186,95996,141240,164804,215030 };
-uint32_t Sizes[9] = { 0,11732,19156,25646,33200,62454,84264,107828,158054 };
+//uint32_t Sizes[9] = { 0,11732,19156,25646,33200,62454,84264,107828,158054 };
 
 
 /*******************************************************************************************************************************
@@ -196,6 +198,43 @@ void DF::EndWrite (void) {
 }
 
 DF DataFlash;
+
+
+
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
+void load_sizes_from_flash(void) {
+  DataFlash.BeginRead(0);
+  
+  for (uint8_t i = 0; i < MAX_SIZES; i++) {
+    uint32_t val = 0;
+    
+    // Read 4 bytes in REVERSE order for little-endian → AVR
+    uint8_t bytes[4];
+    for (uint8_t b = 0; b < 4; b++) {
+      bytes[b] = DataFlash.ReadByte();
+    }
+    
+    // Little-endian: LSB first, so reverse for AVR uint32_t
+    val  = bytes[0];        // LSB
+    val |= ((uint32_t)bytes[1]) <<  8;
+    val |= ((uint32_t)bytes[2]) << 16;
+    val |= ((uint32_t)bytes[3]) << 24;  // MSB
+    
+    // Stop at first null terminator (after offsets, before the two 0x00000000)
+    if (val == 0 && i > 0) {
+      num_sizes = i;
+      break;
+    }
+    Sizes[i] = val;
+  }
+  
+  DataFlash.EndRead();
+}
+
 
 
 /*******************************************************************************************************************************
@@ -378,6 +417,34 @@ void play_random_sample() {
  *  Setup
  *******************************************************************************************************************************/
 void setup() {
+
+  DataFlash.Setup();
+  DataFlash.PowerDown(false);
+
+  load_sizes_from_flash();
+  //Serial.begin(9600);
+  //Serial.println("Loaded offsets:");
+  //for (uint8_t i = 0; i < num_sizes; i++) {
+  //  Serial.println(Sizes[i]);
+  //}
+ 
+#ifdef DEBUG_FORCE_SIZES
+// === Then: overwrite with your debug values ===
+  uint32_t debug_vals[] = {
+    196, 27338, 63606, 75060, 92802, 115046, 138256, 146316, 158442,
+    172248, 189816, 208394, 220126, 227096, 242004, 254264, 259750,
+    345004, 354518, 366666, 383824, 401550, 416186, 425624, 435236,
+    448960, 466180, 477884, 486934, 507158, 527144, 543352, 557400,
+    595286, 612084, 626184, 647766, 660112, 668866, 682380, 697734,
+    710468, 722408, 749754, 761374, 772730, 786400
+  };
+
+  num_sizes = sizeof(debug_vals) / sizeof(debug_vals[0]);
+  for (uint8_t i = 0; i < num_sizes; i++) {
+    Sizes[i] = debug_vals[i];
+  }
+
+#endif
   
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
