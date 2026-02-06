@@ -21,7 +21,7 @@
 //const int sck = 2, miso = 1, mosi = 0, cs = 3;
 //const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
 const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
-const int speaker = PB4;
+const int speaker = PIN_SPEAKER;
 
 
 // Audio player **********************************************
@@ -58,7 +58,9 @@ All samples concatenated into output.bin (total size: 176 bytes)
 
 */
 //uint32_t Sizes[8] = { 0,11732,19156,49464,71274,116518,140082,190308 };
-uint32_t Sizes[10] = { 0,11732,19156,25646,33200,63508,85318,130562,154126,204352 };
+//uint32_t Sizes[10] = { 0,11732,19156,25646,33200,63508,85318,130562,154126,204352 };
+//uint32_t Sizes[11] = { 0,11732,23464,30888,37378,44932,74186,95996,141240,164804,215030 };
+uint32_t Sizes[9] = { 0,11732,19156,25646,33200,62454,84264,107828,158054 };
 
 class DF {
   public:
@@ -195,15 +197,10 @@ DF DataFlash;
  * 
  */
 ISR (TIMER0_COMPA_vect) {
-  /*char sample = DataFlash.ReadByte();
-  OCR1B = sample;*/
-  /*uint8_t raw = DataFlash.ReadByte();
-  OCR1B = raw >> 1;  // 0-127: ~0-1.65V pk-pk, centered ~0.8V avg (safe)*/
   int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
   OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
 
-  Count--;
-  if (Count == 0) {
+  if (--Count == 0) {
     DataFlash.EndRead();
     TIMSK = 0;
     StayAwake = false;
@@ -318,14 +315,15 @@ void play_random_sample() {
   uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
   Play = rand() % num_samples + 1;  // Picks 1-4 uniformly
   #if defined(DEBUG_FIXED_WAV)
-  Play = 1;
+  Play = DEBUG_FIXED_WAV;
   #endif
 
   StayAwake = true;
   Count = Sizes[Play] - Sizes[Play-1];
 
   DataFlash.BeginRead(Sizes[Play-1]);
-  TIMSK = 1<<OCIE0A;              // Enable compare match
+  //TIMSK = 1<<OCIE0A;              // Enable compare match
+  TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
   // ADD: Timeout safety (ISR not firing? Escape after ~1s)
   uint16_t timeout = 8000;  // ~1s @8kHz
@@ -436,7 +434,12 @@ void loop() {
     wdt_disable();*/
 
   // Random delay 10min-4hr (75-1800 cycles of 8s)
-  uint16_t cycles = (rand() % (1800 - 75 + 1)) + 75;
+  // 4 hours is 1800
+  // 2 hours is 900
+  uint16_t time_max = 900; 
+  uint16_t time_min = 75;
+
+  uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
 
   #if defined(DEBUG_FIXED_8S) 
   cycles = 1;

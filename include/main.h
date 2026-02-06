@@ -8,10 +8,14 @@
 
 
 // Debug Parameters
-#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
+//#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
 
-//#define DEBUG_TONE          // debug directly with a tone
-//#define DEBUG_FIXED_WAV
+//#define DEBUG_TONE  1          // debug directly with a tone
+//#define DEBUG_FIXED_WAV 1
+
+
+// Pin Definitions
+#define PIN_SPEAKER   PB4
 
 // Winbond DataFlash commands
 #define PAGEPROG      0x02
