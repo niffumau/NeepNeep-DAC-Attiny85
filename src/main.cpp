@@ -13,6 +13,8 @@
 #include <stdlib.h>   // For rand() / srand()
 #include <util/delay.h>  // _delay_us()
 
+#include <EEPROM.h>
+
 #include "main.h"
 #include "functions.h"
 
@@ -31,8 +33,8 @@ volatile boolean StayAwake = true;
 volatile int Play;
 volatile uint32_t Count;
 
-uint32_t Sizes[MAX_SIZES];
-uint8_t num_sizes = 0;
+uint32_t Samples[MAX_SIZES];
+uint8_t Num_Samples = 0;
 
 //uint32_t Sizes[5] = { 0, 2486, 5380, 10291, 1415837 };
 
@@ -208,7 +210,8 @@ DF DataFlash;
  */
 void load_sizes_from_flash(void) {
   DataFlash.BeginRead(0);
-  
+  Num_Samples = 0;
+
   for (uint8_t i = 0; i < MAX_SIZES; i++) {
     uint32_t val = 0;
     
@@ -224,15 +227,53 @@ void load_sizes_from_flash(void) {
     val |= ((uint32_t)bytes[2]) << 16;
     val |= ((uint32_t)bytes[3]) << 24;  // MSB
     
+    
+
+
     // Stop at first null terminator (after offsets, before the two 0x00000000)
     if (val == 0 && i > 0) {
-      num_sizes = i;
+      Num_Samples = i;
       break;
     }
-    Sizes[i] = val;
+    Samples[i] = val;
+
+
+    Num_Samples = i;
+
+    /*playTestTone_ms_freq(500, 440);  // 100ms @ 1kHz
+    _delay_us(400);*/
   }
   
   DataFlash.EndRead();
+
+ #ifdef DEBUG_FORCE_SIZES
+  // === Then: overwrite with your debug values ===
+  uint32_t debug_vals[] = {
+    196, 27338, 63606, 75060, 92802, 115046, 138256, 146316, 158442,
+    172248, 189816, 208394, 220126, 227096, 242004, 254264, 259750,
+    345004, 354518, 366666, 383824, 401550, 416186, 425624, 435236,
+    448960, 466180, 477884, 486934, 507158, 527144, 543352, 557400,
+    595286, 612084, 626184, 647766, 660112, 668866, 682380, 697734,
+    710468, 722408, 749754, 761374, 772730, 786400
+  };
+
+  Num_Samples = sizeof(debug_vals) / sizeof(debug_vals[0]);
+  Num_Samples = 46;
+  for (uint8_t i = 0; i < num_sizes; i++) {
+    Samples[i] = debug_vals[i];
+  }
+  #endif
+
+
+
+  // now the debug to beep the number of times for the number of samples we have
+  /*for(uint8_t i = 0; i < Num_Samples; i++) {
+    
+    playTestTone_ms_freq(500, 440);  // 100ms @ 1kHz
+    _delay_us(400);
+  }*/
+
+
 }
 
 
@@ -271,7 +312,7 @@ ISR (TIMER0_COMPA_vect) {
 volatile uint32_t wdt_jitter_seed = 0;
 
 ISR(WDT_vect) {
-  wdt_jitter_seed = TCNT0 ^ TCNT1;  // Capture timer state on WDT wake
+  //wdt_jitter_seed = TCNT0 ^ TCNT1;  // Capture timer state on WDT wake
 }
 
 void setup_random_seed() {
@@ -285,93 +326,23 @@ void setup_random_seed() {
   wdt_disable();
   
   uint32_t seed = wdt_jitter_seed ^ TCNT0 ^ PINB;
-  randomSeed(seed);
+  //randomSeed(seed);
+  srand(seed);
 }
 
-/*******************************************************************************************************************************
- *  Play test Tones  
- *******************************************************************************************************************************
- * 
- */
-void playTestTone() {
-  pinMode(speaker, OUTPUT);
-  
-  // 1kHz PWM on PB4: 64MHz PLL /512 = ~125kHz → OCR1C=125 (1kHz)
-  PLLCSR = (1<<PCKE) | (1<<PLLE);
-  while(!(PLLCSR & (1<<PLOCK)));
-  
-  GTCCR = (1<<COM1B0) | (1<<PWM1B);
-  TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512 prescale
-  OCR1C = 125;  // TOP=1kHz
-  OCR1B = 62;   // 50% duty
-  
-  // 100ms delay (calibrated @64MHz PLL)
-  for(volatile uint16_t i=0; i<8333; i++) { _delay_us(12); }
-  
-  // Stop
-  TCCR1 = 0;
-  GTCCR = 0;
-  OCR1B = 0;
-  PINB |= (1<<4);
-  pinMode(speaker, INPUT);        // Avoid click
-}
 
-// Parameterized version: playTestTone_ms(500);  // 500ms
-void playTestTone_ms(uint16_t ms) {
-  pinMode(speaker, OUTPUT);
-  
-  // 1kHz PWM setup (unchanged)
-  PLLCSR = (1<<PCKE) | (1<<PLLE);
-  while(!(PLLCSR & (1<<PLOCK)));
-  
-  GTCCR = (1<<COM1B0) | (1<<PWM1B);
-  TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
-  OCR1C = 125;  // 1kHz TOP
-  OCR1B = 62;   // 50% duty
-  
-  // Play for exact ms (1kHz cycles * ms)
-  uint32_t cycles = (uint32_t)ms * 1000;  // ms → total cycles @1kHz
-  for(volatile uint32_t i = 0; i < cycles; i++) {
-    _delay_us(1);  // 1ms per 1000 loops (precise)
-  }
-  
-  // Stop (unchanged)
-  TCCR1 = 0;
-  GTCCR = 0;
-  OCR1B = 0;
-  PINB |= (1<<4);
-  pinMode(speaker, INPUT);
-}
-
-// Full control: playTestTone_ms_freq(100, 1000);  // 100ms @1kHz
-void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
-  pinMode(speaker, OUTPUT);
-  
-  PLLCSR = (1<<PCKE) | (1<<PLLE);
-  while(!(PLLCSR & (1<<PLOCK)));
-  
-  uint16_t top = 64000 / freq_hz;
-  if (top > 255) top = 255;
-  
-  GTCCR = (1<<COM1B0) | (1<<PWM1B);
-  TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
-  OCR1C = top;
-  OCR1B = top / 2;
-  
-  // FIXED: cycles = ms * 1000 (microseconds total)
-  uint32_t total_us = (uint32_t)ms * 1000;
-  for(volatile uint32_t i = 0; i < total_us; i++) {
-    _delay_us(1);  // Simple µs counter
-  }
-  
-  // Stop
-  TCCR1 = 0; GTCCR = 0; OCR1B = 0;
-  PINB |= (1<<4);
-  pinMode(speaker, INPUT);
-}
 
 //volatile uint32_t wdt_jitter_seed = 0;
+/*
+static uint32_t rand_state = 12345;  // Arbitrary initial, changes per boot due to timing
+uint8_t get_next_sample(uint8_t max_samples) {
+  rand_state ^= rand_state << 13;
+  rand_state ^= rand_state >> 17;
+  rand_state ^= rand_state << 5;
+  return ((rand_state % max_samples) + 1);
+}
 
+static uint32_t prng_state = 0xACE1;  // Boot-varies from fuse/regs*/
 
 /*******************************************************************************************************************************
  *  Play Random Sample
@@ -390,19 +361,45 @@ void play_random_sample() {
   DataFlash.PowerDown(false);
   StayAwake = true;
 
+/*
+TCNT1 = 0;  // Safe: Timer1 PWM running, just reads counter
+_delay_us(23);  // Tiny wait for jitter (calibrated safe)
+uint32_t seed = TCNT1 ^ PINB ^ 0xDEADBEEF;  // XOR SPI + constant
+randomSeed(seed);*/
+
   // Pick random sample (1-4)
   //Play = rand() % 4 + 1;
   //Play = 1;   // force play to 1
-  uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
-  Play = rand() % num_samples + 1;  // Picks 1-4 uniformly
+
+  //uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
+  //Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
+
+// this wone worked but apparenlty it is broken for low numbers?
+  Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
+  
+  //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
+
+  // this did not work
+  /*uint8_t num_samples = num_sizes;
+  Play = get_next_sample(num_samples);*/
+
+/*
+prng_state *= 1103515245;
+prng_state += 12345;
+prng_state ^= (prng_state >> 16);
+uint8_t num_samples = num_sizes;
+Play = ((prng_state ^ PINB) % num_samples) + 1;*/
+
+  
+
   #if defined(DEBUG_FIXED_WAV)
   Play = DEBUG_FIXED_WAV;
   #endif
 
   StayAwake = true;
-  Count = Sizes[Play] - Sizes[Play-1];
+  Count = Samples[Play] - Samples[Play-1];
 
-  DataFlash.BeginRead(Sizes[Play-1]);
+  DataFlash.BeginRead(Samples[Play-1]);
   //TIMSK = 1<<OCIE0A;              // Enable compare match
   TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
@@ -439,39 +436,63 @@ void play_random_sample() {
 }
 
 
+
 /*******************************************************************************************************************************
  *  Setup
  *******************************************************************************************************************************/
 void setup() {
 
+  // Start Timer0 ASAP for entropy
+/*  TCCR0B = _BV(CS01);   // clk/8
+  _delay_ms(5);         // let it run a little*/
+
+
+  //srand(getSeed());
+  //srand(jitterSeed()); 
+
+/*
+  // fuck knows
+  uint16_t seed = 0;
+  for (int i = 0; i < 32; i++) {
+    delay(1);
+    seed = (seed << 1) ^ TCNT0;
+  }
+  srand(seed);
+  */
+
+  /*
+  // An EEPROM Version
+  uint16_t seed;
+eeprom_read_block(&seed, 0, 2);
+seed ^= TCNT0;
+seed ^= ADC;
+eeprom_write_block(&seed, 0, 2);
+randomSeed(seed);*/
+
+
+/*
+  uint32_t seed;
+  EEPROM.get(0, seed);
+
+  seed ^= TCNT0;
+  seed ^= TCNT1;
+  seed ^= PINB;
+  seed ^= (uint32_t)micros() << 16;
+
+  EEPROM.put(0, seed);
+  srand(seed);
+  */
+
+
   DataFlash.Setup();
   DataFlash.PowerDown(false);
-
   load_sizes_from_flash();
-  //Serial.begin(9600);
-  //Serial.println("Loaded offsets:");
-  //for (uint8_t i = 0; i < num_sizes; i++) {
-  //  Serial.println(Sizes[i]);
-  //}
+
  
-#ifdef DEBUG_FORCE_SIZES
-// === Then: overwrite with your debug values ===
-  uint32_t debug_vals[] = {
-    196, 27338, 63606, 75060, 92802, 115046, 138256, 146316, 158442,
-    172248, 189816, 208394, 220126, 227096, 242004, 254264, 259750,
-    345004, 354518, 366666, 383824, 401550, 416186, 425624, 435236,
-    448960, 466180, 477884, 486934, 507158, 527144, 543352, 557400,
-    595286, 612084, 626184, 647766, 660112, 668866, 682380, 697734,
-    710468, 722408, 749754, 761374, 772730, 786400
-  };
-
-  num_sizes = sizeof(debug_vals) / sizeof(debug_vals[0]);
-  for (uint8_t i = 0; i < num_sizes; i++) {
-    Sizes[i] = debug_vals[i];
-  }
-
-#endif
+ 
   
+
+
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
@@ -487,17 +508,22 @@ void setup() {
 
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC to save power
 
+  // ************* The original Seed **************************
   // Seed random with ADC noise (pin 5/PB2 floating or unconnected)
-  //ADCSRA |= (1<<ADEN);              // Temp enable ADC
-  //randomSeed(analogRead(PB0));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
-  
-  //ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
+  ADCSRA |= (1<<ADEN);              // Temp enable ADC
+  //randomSeed(analogRead(PB2));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
+  srand(analogRead(PB2));           // although i think that it shoudl be srand
+  ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
+
+
+
+
   //randomSeed(get_random_seed());
   //setup_random_seed();
   // Replace your ADC code with this:
   /*uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
   randomSeed(seed);*/
-  setup_random_seed();
+  //setup_random_seed();
 
   // it said to add this to the thing, not sure if it helps???
   TCCR0B |= 2<<CS00;              
@@ -506,6 +532,54 @@ void setup() {
   #if defined(DEBUG_TONE)
   playTestTone_ms_freq(50, 440);
   #endif
+
+/*
+  // ADC seed - precise bits only
+  ADMUX = _BV(REFS0) | 0b11110;
+  ADCSRA |= _BV(ADEN) | _BV(ADPS2) | _BV(ADPS1) | _BV(ADPS0);
+  ADCSRA |= _BV(ADSC);
+  loop_until_bit_is_clear(ADCSRA, ADSC);
+  uint8_t adc_noise = ADC;
+  ADCSRA &= ~_BV(ADEN);
+  randomSeed(adc_noise ^ TCNT1 ^ PINB ^ GPIOR0);*/
+
+  /*uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
+  randomSeed(seed);*/
+
+  //setup_random_seed();
+/*  _delay_ms(1);  // Let noise/timers settle
+  uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0 ^ (ADC >> 4);  // Include ADC mux bits
+  randomSeed(seed);*/
+
+/*
+  uint32_t seed;
+  EEPROM.get(0, seed);
+
+  // Mix real entropy
+  seed ^= TCNT0;
+  seed ^= (TCNT0 << 8);
+  seed ^= PINB;
+
+  // Advance seed so EEPROM never repeats
+  seed = seed * 1103515245UL + 12345UL;
+
+  EEPROM.put(0, seed);
+  srand(seed);
+  randomSeed(seed);
+  rand();   // throw away the first random number after seeding (AVR quirk apparently)
+*/
+
+  // now the debug to beep the number of times for the number of samples we have
+  /*for(uint8_t i = 0; i < Num_Samples; i++) {
+    
+    playTestTone_ms_freq(500, 440);  // 100ms @ 1kHz
+    _delay_us(400);
+  }*/
+
+
+
+
+
 
 }
 
@@ -556,7 +630,8 @@ void loop() {
   // Random delay 10min-4hr (75-1800 cycles of 8s)
   // 4 hours is 1800
   // 2 hours is 900
-  uint16_t time_max = 900; 
+  // 1 hour is 450
+  uint16_t time_max = 450; 
   uint16_t time_min = 75;
 
   uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
