@@ -108,27 +108,29 @@ void playTestTone_ms(uint16_t ms) {
  */
 // Full control: playTestTone_ms_freq(100, 1000);  // 100ms @1kHz
 void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
-  pinMode(speaker, OUTPUT);
-  
-  PLLCSR = (1<<PCKE) | (1<<PLLE);
-  while(!(PLLCSR & (1<<PLOCK)));
-  
-  uint16_t top = 64000 / freq_hz;
-  if (top > 255) top = 255;
-  
-  GTCCR = (1<<COM1B0) | (1<<PWM1B);
-  TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
-  OCR1C = top;
-  OCR1B = top / 2;
-  
-  // FIXED: cycles = ms * 1000 (microseconds total)
-  uint32_t total_us = (uint32_t)ms * 1000;
-  for(volatile uint32_t i = 0; i < total_us; i++) {
+    pinMode(speaker, OUTPUT);
+
+    PLLCSR = (1<<PCKE) | (1<<PLLE);
+    while(!(PLLCSR & (1<<PLOCK)));
+
+    uint16_t top = 64000 / freq_hz;
+    if (top > 255) top = 255;
+
+    GTCCR = (1<<COM1B0) | (1<<PWM1B);
+    TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
+    OCR1C = top;
+    OCR1B = top / 2;
+
+    // FIXED: cycles = ms * 1000 (microseconds total)
+    uint32_t total_us = (uint32_t)ms * 1000;
+    for(volatile uint32_t i = 0; i < total_us; i++) {
     _delay_us(1);  // Simple µs counter
-  }
-  
-  // Stop
-  TCCR1 = 0; GTCCR = 0; OCR1B = 0;
-  PINB |= (1<<4);
-  pinMode(speaker, INPUT);
+    }
+
+    // Stop
+    TCCR1 = 0; GTCCR = 0; OCR1B = 0;
+    PINB |= (1<<4);
+    pinMode(speaker, INPUT);
+
+ 
 }

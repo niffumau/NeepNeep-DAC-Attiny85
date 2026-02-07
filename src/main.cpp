@@ -1,19 +1,15 @@
-/* Four Sample Player
+/* 
+ * Plays random samples from Flash
 
-   David Johnson-Davies - www.technoblogy.com - 21st January 2020
-   ATtiny85 @ 8 MHz (internal oscillator; BOD disabled)
-      
-   CC BY 4.0
-   Licensed under a Creative Commons Attribution 4.0 International license: 
-   http://creativecommons.org/licenses/by/4.0/
-*/
+ */
+
 #include <Arduino.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>  // For Watchdog Timer
 #include <stdlib.h>   // For rand() / srand()
 #include <util/delay.h>  // _delay_us()
 
-#include <EEPROM.h>
+//#include <EEPROM.h>
 
 #include "main.h"
 #include "functions.h"
@@ -35,38 +31,6 @@ volatile uint32_t Count;
 
 uint32_t Samples[MAX_SIZES];
 uint8_t Num_Samples = 0;
-
-//uint32_t Sizes[5] = { 0, 2486, 5380, 10291, 1415837 };
-
-/*uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
-                      4000,    // Chunk 2: seconds 3-4  
-                      8000,    // Chunk 3: seconds 5-6
-                      16000,    // Chunk 4: seconds 7-8
-                      32000 };      // End (unused)*/
-
-
-/* samples
-
-Samples play at 8kHz, so 8,000 per second, so the first one 2486/8000
-
-Sample	Samples	Duration
-1	2486	0.31s 
-​2	2894	0.36s 
-​3	4911	0.61s 
-​4	1,405,546	175.69s 
-​
-Processing come_get_some_x.wav: start byte 0, length 11732 bytes
-Processing cough_x.wav: start byte 11732, length 8594 bytes
-Processing dentist_drill.wav: start byte 20326, length 17376 bytes
-Processing disconnect_11.wav: start byte 37702, length 7424 bytes
-All samples concatenated into output.bin (total size: 176 bytes)
-
-
-*/
-//uint32_t Sizes[8] = { 0,11732,19156,49464,71274,116518,140082,190308 };
-//uint32_t Sizes[10] = { 0,11732,19156,25646,33200,63508,85318,130562,154126,204352 };
-//uint32_t Sizes[11] = { 0,11732,23464,30888,37378,44932,74186,95996,141240,164804,215030 };
-//uint32_t Sizes[9] = { 0,11732,19156,25646,33200,62454,84264,107828,158054 };
 
 
 /*******************************************************************************************************************************
@@ -120,10 +84,11 @@ boolean DF::Setup () {
 }
 
 /***************************************************
- *  
+ *  DF:Write
  ***************************************************
  * 
  */
+
 void DF::Write (uint8_t data) {
   uint8_t bit = 0x80;
   while (bit) {
@@ -134,6 +99,7 @@ void DF::Write (uint8_t data) {
     PINB = 1<<sck;                        // sck low
   }
 }
+
 
 /***************************************************
  *  
@@ -148,10 +114,17 @@ void DF::Busy () {
   digitalWrite(cs, 1);
 }*/
 // apparenlty the one above coudl be problmenatic
-void DF::Busy() {
+/*void DF::Busy() {
   digitalWrite(cs, LOW);
   Write(READSTATUS);
   uint8_t cnt=100; while((Read()&1) && cnt--);
+  digitalWrite(cs, HIGH);
+}*/
+void DF::Busy() {
+  digitalWrite(cs, LOW);
+  Write(READSTATUS);
+  uint8_t cnt=100;
+  while((Read()&1) && cnt--) {}  // Escape if stuck
   digitalWrite(cs, HIGH);
 }
 
@@ -360,12 +333,13 @@ void load_sizes_from_flash(void) {
  ***************************************************
  * 
  */
+
 ISR (TIMER0_COMPA_vect) {
   char sample = DataFlash.ReadByte();
   OCR1B = sample;
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
-  /*int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
-  OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg*/
+  //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
+  //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
 
   if (--Count == 0) {
     DataFlash.EndRead();
@@ -374,48 +348,15 @@ ISR (TIMER0_COMPA_vect) {
   }
 }
 
+
 /***************************************************
  *  Watchdog ISR
  ***************************************************
  * Not sure why this is required???
  */
 // Watchdog ISR - just wake up, no action needed
-/*ISR(WDT_vect) { }*/
+ISR(WDT_vect) { }
 
-volatile uint32_t wdt_jitter_seed = 0;
-
-ISR(WDT_vect) {
-  //wdt_jitter_seed = TCNT0 ^ TCNT1;  // Capture timer state on WDT wake
-}
-
-void setup_random_seed() {
-  // Enable WDT for 16ms, let it fire once
-  wdt_reset();
-  WDTCR = (1<<WDCE) | (1<<WDE);
-  WDTCR = (1<<WDIE) | (1<<WDP0);  // 16ms interrupt
-  
-  _delay_ms(20);  // Wait for WDT ISR (uses constant!)
-  
-  wdt_disable();
-  
-  uint32_t seed = wdt_jitter_seed ^ TCNT0 ^ PINB;
-  //randomSeed(seed);
-  srand(seed);
-}
-
-
-
-//volatile uint32_t wdt_jitter_seed = 0;
-/*
-static uint32_t rand_state = 12345;  // Arbitrary initial, changes per boot due to timing
-uint8_t get_next_sample(uint8_t max_samples) {
-  rand_state ^= rand_state << 13;
-  rand_state ^= rand_state >> 17;
-  rand_state ^= rand_state << 5;
-  return ((rand_state % max_samples) + 1);
-}
-
-static uint32_t prng_state = 0xACE1;  // Boot-varies from fuse/regs*/
 
 /*******************************************************************************************************************************
  *  Play Random Sample
@@ -440,7 +381,36 @@ void play_random_sample() {
   StayAwake = true;
   Count = Samples[Play] - Samples[Play-1];
 
+  if(Count > MAX_SAFE_SAMPLES) {
+    Count = MAX_SAFE_SAMPLES;  // Truncate long samples
+    playTestTone_ms_freq(20, 200);  // Brief "warning" beep
+  }
+
+
+//  PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
+
+  // Set up Timer/Counter1 for PWM output
+  TIMSK = 0;                        // Timer interrupts OFF
+  TCCR1 = 1<<CS10;                  // 1:1 prescale
+  GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
+  OCR1B = 128;                      // 50% duty at start
+/*
+  // Set up Timer/Counter0 for 8kHz interrupt to output samples.
+  TCCR0A = 3<<WGM00;                // Fast PWM
+  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
+  OCR0A = 124;                      // Divide by 1000*/
+
+  pinMode(speaker, OUTPUT);
+
+
+
+
+
+
   DataFlash.BeginRead(Samples[Play-1]);
+
+ // DataFlash.Busy();  // Ensure ready before ISR
+
   //TIMSK = 1<<OCIE0A;              // Enable compare match
   TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
@@ -488,47 +458,9 @@ void play_random_sample() {
  *******************************************************************************************************************************/
 void setup() {
 
-  // Start Timer0 ASAP for entropy
-/*  TCCR0B = _BV(CS01);   // clk/8
-  _delay_ms(5);         // let it run a little*/
-
-
-  //srand(getSeed());
-  //srand(jitterSeed()); 
-
-/*
-  // fuck knows
-  uint16_t seed = 0;
-  for (int i = 0; i < 32; i++) {
-    delay(1);
-    seed = (seed << 1) ^ TCNT0;
-  }
-  srand(seed);
-  */
-
-
-
-
-/*
-  uint32_t seed;
-  EEPROM.get(0, seed);
-
-  seed ^= TCNT0;
-  seed ^= TCNT1;
-  seed ^= PINB;
-  seed ^= (uint32_t)micros() << 16;
-
-  EEPROM.put(0, seed);
-  srand(seed);
-  */
-
-
   DataFlash.Setup();
   DataFlash.PowerDown(false);
   load_sizes_from_flash();
-
- 
-  
 
 
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
@@ -554,26 +486,6 @@ void setup() {
   //srand(analogRead(PB2));           // although i think that it shoudl be srand
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC*/
 
-
-/*  
-  // An EEPROM Version
-  uint16_t seed;
-  eeprom_read_block(&seed, 0, 2);
-  seed ^= TCNT0;
-  seed ^= ADC;
-  eeprom_write_block(&seed, 0, 2);
-  srand(seed);*/
-
-  // based on a temprature sensor?
-  //srand(getSeed());
-  //srand(jitterSeed());
-
-/*
-  uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
-  randomSeed(seed);
-*/
-  
-
   // it said to add this to the thing, not sure if it helps???
   TCCR0B |= 2<<CS00;              
 
@@ -582,51 +494,9 @@ void setup() {
   playTestTone_ms_freq(50, 440);
   #endif
 
-/*
-  // ADC seed - precise bits only
-  ADMUX = _BV(REFS0) | 0b11110;
-  ADCSRA |= _BV(ADEN) | _BV(ADPS2) | _BV(ADPS1) | _BV(ADPS0);
-  ADCSRA |= _BV(ADSC);
-  loop_until_bit_is_clear(ADCSRA, ADSC);
-  uint8_t adc_noise = ADC;
-  ADCSRA &= ~_BV(ADEN);
-  randomSeed(adc_noise ^ TCNT1 ^ PINB ^ GPIOR0);*/
-
-
-
-  //setup_random_seed();
   _delay_ms(1);  // Let noise/timers settle
   uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0 ^ (ADC >> 4);  // Include ADC mux bits
   randomSeed(seed);
-
-/*
-  uint32_t seed;
-  EEPROM.get(0, seed);
-
-  // Mix real entropy
-  seed ^= TCNT0;
-  seed ^= (TCNT0 << 8);
-  seed ^= PINB;
-
-  // Advance seed so EEPROM never repeats
-  seed = seed * 1103515245UL + 12345UL;
-
-  EEPROM.put(0, seed);
-  srand(seed);
-  randomSeed(seed);
-  rand();   // throw away the first random number after seeding (AVR quirk apparently)
-*/
-
-  // now the debug to beep the number of times for the number of samples we have
-  /*for(uint8_t i = 0; i < Num_Samples; i++) {
-    
-    playTestTone_ms_freq(500, 440);  // 100ms @ 1kHz
-    _delay_us(400);
-  }*/
-
-
-
-
 
 
 }
@@ -636,31 +506,17 @@ void setup() {
  *  Main Loop
  *******************************************************************************************************************************/
 void loop() {
- 
-
-  //playTestTone_ms(10);   // 100ms (original)
-  //playTestTone_ms_freq(50, 440);   // 250ms @ A4 (440Hz)
-
 
   while (true) {
-
-    //playTestTone_ms(100);
-    //playTestTone_ms_freq(100, 1000);  // 100ms @ 1kHz
-    //playTestTone_ms_freq(50, 440);   // 250ms @ A4 (440Hz)
-    //playTestTone();
     play_random_sample();
  
 
-    // Random delay 10min-4hr (75-1800 cycles of 8s)
-    // 4 hours is 1800
-    // 2 hours is 900
-    // 1 hour is 450
-    uint16_t time_max = TIME_MAX; 
-    uint16_t time_min = TIME_MIN;
-
-    uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
 
     #if !defined(DEBUG_NO_DELAY)
+    uint16_t time_max = TIME_MAX; 
+    uint16_t time_min = TIME_MIN;
+    uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
+
     #if defined(DEBUG_FIXED_8S) 
     cycles = 1;
     #endif

@@ -28,6 +28,8 @@
 #define TIME_MAX 450
 #define TIME_MIN 45
 
+#define MAX_SAFE_SAMPLES 32000  // ~8s @8kHz, tune as needed (e.g., 32000=4s)
+
 
 
 // Pin Definitions
