@@ -52,11 +52,12 @@ class DF {
     void EndRead(void);
     void EndWrite(void);
     void PowerDown(boolean);
+    void Busy(void);
   private:
     unsigned long addr;
     uint8_t Read(void);
     void Write(uint8_t);
-    void Busy(void);
+    //void Busy(void);
     void WriteEnable(void);
 };
 
@@ -80,6 +81,7 @@ boolean DF::Setup () {
   (void)manID;
   devID = Read();
   digitalWrite(cs, HIGH);
+  
   return (devID == 0x15); // Found correct device
 }
 
@@ -120,11 +122,19 @@ void DF::Busy () {
   uint8_t cnt=100; while((Read()&1) && cnt--);
   digitalWrite(cs, HIGH);
 }*/
-void DF::Busy() {
+/*void DF::Busy() {
   digitalWrite(cs, LOW);
   Write(READSTATUS);
   uint8_t cnt=100;
   while((Read()&1) && cnt--) {}  // Escape if stuck
+  digitalWrite(cs, HIGH);
+}*/
+
+void DF::Busy() {
+  uint8_t cnt=50;
+  digitalWrite(cs, LOW);
+  Write(READSTATUS);
+  while((Read() & 1) && cnt--);  // Exit if stuck
   digitalWrite(cs, HIGH);
 }
 
@@ -169,7 +179,7 @@ void DF::BeginRead (uint32_t start) {
  ***************************************************
  * 
  */
-uint8_t DF::Read () {
+/*uint8_t DF::Read () {
   uint8_t data = 0;
   uint8_t bit = 0x80;
   while (bit) {
@@ -177,6 +187,30 @@ uint8_t DF::Read () {
     if (PINB & 1<<miso) data = data | bit;
     PINB = 1<<sck;                        // sck low
     bit = bit>>1;
+  }
+  return data;
+}*/
+/*uint8_t DF::Read() {
+  uint8_t data = 0;
+  uint8_t bit = 0x80;
+  while(bit) {
+    PINB = 1<<sck;             // SCK ↑
+    _delay_us(0.5);              // ✅ Hold/setup time
+    if(PINB & 1<<miso) data |= bit;  // Sample stable rising edge
+    PINB = 1<<sck;             // SCK ↓
+    bit >>= 1;
+  }
+  return data;
+}*/
+uint8_t DF::Read() {
+  uint8_t data = 0;
+  uint8_t bit = 0x80;
+  while(bit) {
+    PINB = 1<<sck;                    // SCK ↑
+    asm volatile("nop\nnop\nnop");    // 3 cycles delay (~0.4µs @8MHz)
+    if(PINB & 1<<miso) data |= bit;   // Sample stable
+    PINB = 1<<sck;                    // SCK ↓
+    bit >>= 1;
   }
   return data;
 }
@@ -340,11 +374,19 @@ ISR (TIMER0_COMPA_vect) {
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
   //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
   //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
+  wdt_reset();
 
   if (--Count == 0) {
     DataFlash.EndRead();
     TIMSK = 0;
     StayAwake = false;
+  }
+  if (Count > MAX_SAFE_SAMPLES) {
+    while (1) {
+    playTestTone_ms_freq(100, 1000);
+    playTestTone_ms_freq(100, 800);
+    playTestTone_ms_freq(100,500);
+    }
   }
 }
 
@@ -355,7 +397,12 @@ ISR (TIMER0_COMPA_vect) {
  * Not sure why this is required???
  */
 // Watchdog ISR - just wake up, no action needed
-ISR(WDT_vect) { }
+ISR(WDT_vect) { 
+   while (1) {
+    playTestTone_ms_freq(100, 1000);
+    playTestTone_ms_freq(100,500);
+    }
+}
 
 
 /*******************************************************************************************************************************
@@ -386,6 +433,8 @@ void play_random_sample() {
     playTestTone_ms_freq(20, 200);  // Brief "warning" beep
   }
 
+  wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
+  wdt_reset();
 
 //  PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
@@ -414,14 +463,17 @@ void play_random_sample() {
   //TIMSK = 1<<OCIE0A;              // Enable compare match
   TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
+  //wdt_reset();
   // ADD: Timeout safety (ISR not firing? Escape after ~1s)
   uint16_t timeout = 8000;  // ~1s @8kHz
   while (StayAwake && timeout--) {
+    //wdt_reset();    // for every ms ///added this becuase I wasnt sure ///////////////////////////////////maybe its getting stuck here?
     _delay_ms(1);  // Yield CPU
   }
 
   // apparently i shoudl add these?
   DataFlash.EndRead();  // Ensure CS high
+  //wdt_disable();  // After EndRead() //////////////////////////////////////////////////////////////////////////////////////////////
   TIMSK = 0;  // Kill ISR
 
   
