@@ -375,7 +375,8 @@ randomSeed(seed);*/
   //Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
 
 // this wone worked but apparenlty it is broken for low numbers?
-  Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
+  //Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
+  Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
   
   //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
 
@@ -504,8 +505,8 @@ void setup() {
   // ************* The original Seed **************************
   // Seed random with ADC noise (pin 5/PB2 floating or unconnected)
   ADCSRA |= (1<<ADEN);              // Temp enable ADC
-  //randomSeed(analogRead(PB2));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
-  srand(analogRead(PB2));           // although i think that it shoudl be srand
+  randomSeed(analogRead(PB2));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
+  //srand(analogRead(PB2));           // although i think that it shoudl be srand
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC*/
 
 
@@ -519,17 +520,14 @@ void setup() {
   srand(seed);*/
 
   // based on a temprature sensor?
-  srand(getSeed());
+  //srand(getSeed());
+  //srand(jitterSeed());
 
-
-
-
-  //randomSeed(get_random_seed());
-  //setup_random_seed();
-  // Replace your ADC code with this:
-  /*uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
-  randomSeed(seed);*/
-  //setup_random_seed();
+/*
+  uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
+  randomSeed(seed);
+*/
+  
 
   // it said to add this to the thing, not sure if it helps???
   TCCR0B |= 2<<CS00;              
@@ -549,13 +547,12 @@ void setup() {
   ADCSRA &= ~_BV(ADEN);
   randomSeed(adc_noise ^ TCNT1 ^ PINB ^ GPIOR0);*/
 
-  /*uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0;
-  randomSeed(seed);*/
+
 
   //setup_random_seed();
-/*  _delay_ms(1);  // Let noise/timers settle
+  _delay_ms(1);  // Let noise/timers settle
   uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0 ^ (ADC >> 4);  // Include ADC mux bits
-  randomSeed(seed);*/
+  randomSeed(seed);
 
 /*
   uint32_t seed;
@@ -602,62 +599,39 @@ void loop() {
 
   while (true) {
 
-
     //playTestTone_ms(100);
     //playTestTone_ms_freq(100, 1000);  // 100ms @ 1kHz
     //playTestTone_ms_freq(50, 440);   // 250ms @ A4 (440Hz)
     //playTestTone();
     play_random_sample();
-  
-    
+ 
 
+    // Random delay 10min-4hr (75-1800 cycles of 8s)
+    // 4 hours is 1800
+    // 2 hours is 900
+    // 1 hour is 450
+    uint16_t time_max = 450; 
+    uint16_t time_min = 75;
 
-/*
-    // Watchdog for first 8s sleep
-    wdt_reset();
-    WDTCR = (1<<WDCE) | (1<<WDE);   // Unlock
-    WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8.0s interrupt
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    sleep_enable();
-    sleep_cpu();
-    sleep_disable();
-    wdt_disable();
+    uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
 
-    // Second WDT for ~2s sleep
-    wdt_reset();
-    WDTCR = (1<<WDCE) | (1<<WDE);
-    WDTCR = (1<<WDIE) | (1<<WDP2);  // 2.0s interrupt
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    sleep_enable();
-    sleep_cpu();
-    sleep_disable();
-    wdt_disable();*/
+    #if !defined(DEBUG_NO_DELAY)
+    #if defined(DEBUG_FIXED_8S) 
+    cycles = 1;
+    #endif
 
-  // Random delay 10min-4hr (75-1800 cycles of 8s)
-  // 4 hours is 1800
-  // 2 hours is 900
-  // 1 hour is 450
-  uint16_t time_max = 450; 
-  uint16_t time_min = 75;
-
-  uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
-
-  #if defined(DEBUG_FIXED_8S) 
-  cycles = 1;
-  #endif
-
-  for(uint16_t i = 0; i < cycles; i++) {
-    // Your 8s WDT sleep
-    wdt_reset();
-    WDTCR = (1<<WDCE) | (1<<WDE);
-    WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8s
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    sleep_enable();
-    sleep_cpu();
-    sleep_disable();
-    wdt_disable();
-  }    
-
+    for(uint16_t i = 0; i < cycles; i++) {
+      // Your 8s WDT sleep
+      wdt_reset();
+      WDTCR = (1<<WDCE) | (1<<WDE);
+      WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8s
+      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+      sleep_enable();
+      sleep_cpu();
+      sleep_disable();
+      wdt_disable();
+    }    
+    #endif
     // Ready for next iteration
   }
 }
