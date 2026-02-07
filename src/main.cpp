@@ -232,7 +232,7 @@ void load_sizes_from_flash(void) {
 
     // Stop at first null terminator (after offsets, before the two 0x00000000)
     if (val == 0 && i > 0) {
-      Num_Samples = i;
+      //Num_Samples = i;
       break;
     }
     Samples[i] = val;
@@ -264,13 +264,13 @@ void load_sizes_from_flash(void) {
   }
   #endif
 
-
+  //Num_Samples = 46;
 
   // now the debug to beep the number of times for the number of samples we have
   /*for(uint8_t i = 0; i < Num_Samples; i++) {
     
-    playTestTone_ms_freq(500, 440);  // 100ms @ 1kHz
-    _delay_us(400);
+    playTestTone_ms_freq(100, 440);  // 100ms @ 1kHz
+    _delay_ms(100);
   }*/
 
 
@@ -460,14 +460,7 @@ void setup() {
   srand(seed);
   */
 
-  /*
-  // An EEPROM Version
-  uint16_t seed;
-eeprom_read_block(&seed, 0, 2);
-seed ^= TCNT0;
-seed ^= ADC;
-eeprom_write_block(&seed, 0, 2);
-randomSeed(seed);*/
+
 
 
 /*
@@ -489,7 +482,6 @@ randomSeed(seed);*/
   load_sizes_from_flash();
 
  
- 
   
 
 
@@ -508,12 +500,26 @@ randomSeed(seed);*/
 
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC to save power
 
+/*
   // ************* The original Seed **************************
   // Seed random with ADC noise (pin 5/PB2 floating or unconnected)
   ADCSRA |= (1<<ADEN);              // Temp enable ADC
   //randomSeed(analogRead(PB2));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
   srand(analogRead(PB2));           // although i think that it shoudl be srand
-  ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC
+  ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC*/
+
+
+/*  
+  // An EEPROM Version
+  uint16_t seed;
+  eeprom_read_block(&seed, 0, 2);
+  seed ^= TCNT0;
+  seed ^= ADC;
+  eeprom_write_block(&seed, 0, 2);
+  srand(seed);*/
+
+  // based on a temprature sensor?
+  srand(getSeed());
 
 
 

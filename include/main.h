@@ -27,7 +27,7 @@
 #define POWERDOWN     0xB9
 #define RELEASEPD     0xAB
 
-#define MAX_SIZES 32   // adjust to your maximum expected number (e.g. 10 samples)
+#define MAX_SIZES 64   // adjust to your maximum expected number (e.g. 10 samples)
 
 
 

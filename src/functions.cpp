@@ -2,6 +2,7 @@
 #include "Arduino.h"
 
 #include <util/delay.h>  // _delay_us()
+#include <EEPROM.h>
 
 #include "functions.h"
 
@@ -26,13 +27,13 @@ uint16_t getSeed() {
  * 
  */
 uint16_t jitterSeed() {
-  uint16_t seed = 0;
+  uint16_t _seed = 0;
   for (uint8_t i = 0; i < 16; i++) {
     TCNT0 = 0;
     while (!(TIFR & _BV(TOV0))); // wait overflow
-    seed ^= TCNT0 << i;
+    _seed ^= TCNT0 << i;
   }
-  return seed;
+  return _seed;
 }
 
 //uint16_t seed;
