@@ -508,8 +508,12 @@ void setup() {
 void loop() {
 
   while (true) {
+
+    #if defined(DEBUG_TONE)
+    playTestTone_ms_freq(50, 440);
+    #else
     play_random_sample();
- 
+    #endif
 
 
     #if !defined(DEBUG_NO_DELAY)
