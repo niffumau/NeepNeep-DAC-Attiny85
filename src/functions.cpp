@@ -44,6 +44,8 @@ uint16_t jitterSeed() {
  *******************************************************************************************************************************
  * 
  */
+
+
 void playTestTone() {
   pinMode(speaker, OUTPUT);
   
@@ -67,6 +69,11 @@ void playTestTone() {
   pinMode(speaker, INPUT);        // Avoid click
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 // Parameterized version: playTestTone_ms(500);  // 500ms
 void playTestTone_ms(uint16_t ms) {
   pinMode(speaker, OUTPUT);
@@ -94,6 +101,11 @@ void playTestTone_ms(uint16_t ms) {
   pinMode(speaker, INPUT);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 // Full control: playTestTone_ms_freq(100, 1000);  // 100ms @1kHz
 void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
   pinMode(speaker, OUTPUT);

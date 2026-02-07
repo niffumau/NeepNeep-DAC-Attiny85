@@ -73,6 +73,11 @@ All samples concatenated into output.bin (total size: 176 bytes)
  *  Flash Functions
  *******************************************************************************************************************************/
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 class DF {
   public:
     boolean Setup();
@@ -91,6 +96,11 @@ class DF {
     void WriteEnable(void);
 };
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 boolean DF::Setup () {
   uint8_t manID, devID;
   pinMode(cs, OUTPUT); digitalWrite(cs, HIGH); 
@@ -109,6 +119,11 @@ boolean DF::Setup () {
   return (devID == 0x15); // Found correct device
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::Write (uint8_t data) {
   uint8_t bit = 0x80;
   while (bit) {
@@ -120,25 +135,53 @@ void DF::Write (uint8_t data) {
   }
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
+/*
 void DF::Busy () {
   digitalWrite(cs, 0);
   Write(READSTATUS);
   while ((Read() & 1) != 0);
   digitalWrite(cs, 1);
+}*/
+// apparenlty the one above coudl be problmenatic
+void DF::Busy() {
+  digitalWrite(cs, LOW);
+  Write(READSTATUS);
+  uint8_t cnt=100; while((Read()&1) && cnt--);
+  digitalWrite(cs, HIGH);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::WriteEnable () {
   digitalWrite(cs, 0);
   Write(WRITEENABLE);
   digitalWrite(cs, 1);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::PowerDown (boolean on) {
   digitalWrite(cs, 0);
   if (on) Write(POWERDOWN); else Write(RELEASEPD);
   digitalWrite(cs, 1);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::BeginRead (uint32_t start) {
   addr = start;
   digitalWrite(cs, 0);
@@ -148,6 +191,11 @@ void DF::BeginRead (uint32_t start) {
   Write(addr);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 uint8_t DF::Read () {
   uint8_t data = 0;
   uint8_t bit = 0x80;
@@ -160,10 +208,20 @@ uint8_t DF::Read () {
   return data;
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::EndRead(void) {
   digitalWrite(cs, 1);
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::BeginWrite () {
   addr = 0;
   // Erase DataFlash
@@ -174,10 +232,20 @@ void DF::BeginWrite () {
   Busy();
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 uint8_t DF::ReadByte () {
   return Read();
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::WriteByte (uint8_t data) {
   // New page
   if ((addr & 0xFF) == 0) {
@@ -194,6 +262,11 @@ void DF::WriteByte (uint8_t data) {
   addr++;
 }
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::EndWrite (void) {
   digitalWrite(cs, 1);
   Busy();
@@ -350,48 +423,15 @@ static uint32_t prng_state = 0xACE1;  // Boot-varies from fuse/regs*/
  * Plays a random sample
  */
 void play_random_sample() {
-  /*// SETUP: SPI + speaker for playback
-  pinMode(sck, OUTPUT);    digitalWrite(sck, LOW);
-  pinMode(mosi, OUTPUT);   digitalWrite(mosi, HIGH);
-  pinMode(miso, INPUT);
-  pinMode(cs, OUTPUT);     digitalWrite(cs, HIGH);
-  pinMode(speaker, OUTPUT);*/
   pinMode(speaker, OUTPUT);
   DataFlash.Setup();
   DataFlash.PowerDown(false);
   StayAwake = true;
 
-/*
-TCNT1 = 0;  // Safe: Timer1 PWM running, just reads counter
-_delay_us(23);  // Tiny wait for jitter (calibrated safe)
-uint32_t seed = TCNT1 ^ PINB ^ 0xDEADBEEF;  // XOR SPI + constant
-randomSeed(seed);*/
-
-  // Pick random sample (1-4)
-  //Play = rand() % 4 + 1;
-  //Play = 1;   // force play to 1
-
-  //uint8_t num_samples = sizeof(Sizes) / sizeof(Sizes[0]) - 1;  // 4 for your 5-element array
-  //Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
-
 // this wone worked but apparenlty it is broken for low numbers?
-  //Play = rand() % Num_Samples + 1;  // Picks 1-4 uniformly
   Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
   
   //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
-
-  // this did not work
-  /*uint8_t num_samples = num_sizes;
-  Play = get_next_sample(num_samples);*/
-
-/*
-prng_state *= 1103515245;
-prng_state += 12345;
-prng_state ^= (prng_state >> 16);
-uint8_t num_samples = num_sizes;
-Play = ((prng_state ^ PINB) % num_samples) + 1;*/
-
-  
 
   #if defined(DEBUG_FIXED_WAV)
   Play = DEBUG_FIXED_WAV;
@@ -409,13 +449,18 @@ Play = ((prng_state ^ PINB) % num_samples) + 1;*/
   while (StayAwake && timeout--) {
     _delay_ms(1);  // Yield CPU
   }
+
+  // apparently i shoudl add these?
+  DataFlash.EndRead();  // Ensure CS high
+  TIMSK = 0;  // Kill ISR
+
+  
   if (timeout == 0) {
-    TIMSK = 0;  // Force stop
-    // Optional: blink LED or skip sleep
+    //TIMSK = 0;  // Force stop /// this was already done above...
+    // Optional: blink LED or skip sleep, we don't have an LED
     playTestTone_ms_freq(50, 440);
   }
-
-
+  
   //while (StayAwake);              // Wait for playback end
   //DataFlash.EndRead();  // ADD: Always end (safety) // dont' need this as its part of the function..
 
@@ -610,8 +655,8 @@ void loop() {
     // 4 hours is 1800
     // 2 hours is 900
     // 1 hour is 450
-    uint16_t time_max = 450; 
-    uint16_t time_min = 75;
+    uint16_t time_max = TIME_MAX; 
+    uint16_t time_min = TIME_MIN;
 
     uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
 

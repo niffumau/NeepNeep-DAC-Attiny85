@@ -8,12 +8,27 @@
 
 
 // Debug Parameters
-#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
+//#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
 #define DEBUG_NO_DELAY
 
 //#define DEBUG_TONE  1          // debug directly with a tone
-//#define DEBUG_FIXED_WAV 1
+
+// Set a fixed one to play      // 17 is the freedom one.
+//#define DEBUG_FIXED_WAV 17
 //#define DEBUG_FORCE_SIZES
+
+    // Random delay 10min-4hr (75-1800 cycles of 8s)
+    // 4 hours is 1800
+    // 2 hours is 900
+    // 1 hour is 450
+    // 10 min is 75
+    // 45 is 6 min
+    // 37 is about 5 min
+    // 8 is about 1 min...
+#define TIME_MAX 450
+#define TIME_MIN 45
+
+
 
 // Pin Definitions
 #define PIN_SPEAKER   PB4
