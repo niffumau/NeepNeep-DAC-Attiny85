@@ -439,22 +439,14 @@ ISR(WDT_vect) {
  * Plays a random sample
  */
 void play_random_sample() {
-
-
   pinMode(PIN_SPEAKER, OUTPUT);
-
-  
-
-  //wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
-  //wdt_reset();
 
   DataFlash.Setup();
   DataFlash.PowerDown(false);
 
 
-// this wone worked but apparenlty it is broken for low numbers?
+  // this wone worked but apparenlty it is broken for low numbers?
   Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
-  
   //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
 
   #if defined(DEBUG_FIXED_WAV)
@@ -468,7 +460,6 @@ void play_random_sample() {
     Count = MAX_SAFE_SAMPLES;  // Truncate long samples
     playTestTone_ms_freq(20, 200);  // Brief "warning" beep
   }
-
 
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
@@ -489,8 +480,6 @@ void play_random_sample() {
 
   DataFlash.BeginRead(Samples[Play-1]);
 
- // DataFlash.Busy();  // Ensure ready before ISR
-
   TIMSK = 1<<OCIE0A;              // Enable compare match
   //TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
@@ -503,7 +492,6 @@ void play_random_sample() {
   }
 
   // apparently i shoudl add these?
-//  DataFlash.EndRead();  // Ensure CS high ////////////20260208 removed this line
   //wdt_disable();  // After EndRead() //////////////////////////////////////////////////////////////////////////////////////////////
   //TIMSK = 0;  // Kill ISR
   TIMSK &= ~(1<<OCIE0A);
