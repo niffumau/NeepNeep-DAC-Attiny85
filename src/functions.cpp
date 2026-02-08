@@ -163,6 +163,19 @@ void playTestTone_ms_freq(uint16_t _ms, uint16_t _freq_hz) {
     PINB |= (1<<4);
     pinMode(PIN_SPEAKER, INPUT);
 
+
+  // apparently the way to clear it
+  // In stop section, replace with:
+    TCCR1 = 0;       // Stop timer clock FIRST (safe even with TOP=0)
+    GTCCR = 0;       // Disable PWM modes
+    OCR1C = 0;       // NOW safe: clear TOP
+    OCR1B = 0;       // Clear duty
+    PLLCSR &= ~(1<<PCKE);  // System clock
+    PINB |= (1<<4);
+    pinMode(PIN_SPEAKER, INPUT);
+
+
+
  
 }
 

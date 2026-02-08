@@ -411,41 +411,6 @@ ISR(WDT_vect) {
  */
 void play_random_sample() {
 
-  // Here i need to set the things that i need to set that the tone doens't break it?
-  /// trying to debug why 1khz tone breaks it
-
-  uint16_t ms = 100;
-  uint16_t freq_hz = 440;
-
-    pinMode(PIN_SPEAKER, OUTPUT);
-
-    PLLCSR = (1<<PCKE) | (1<<PLLE);
-    while(!(PLLCSR & (1<<PLOCK)));
-
-    uint16_t top = 64000 / freq_hz;
-    if (top > 255) top = 255;
-
-    GTCCR = (1<<COM1B0) | (1<<PWM1B);
-    TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
-    OCR1C = top;
-    OCR1B = top / 2;
-
-    // FIXED: cycles = ms * 1000 (microseconds total)
-    uint32_t total_us = (uint32_t)ms * 1000;
-    for(volatile uint32_t i = 0; i < total_us; i++) {
-    _delay_us(1);  // Simple µs counter
-    }
-
-    // Stop
-    TCCR1 = 0; GTCCR = 0; OCR1B = 0;
-    PINB |= (1<<4);
-    pinMode(PIN_SPEAKER, INPUT);
-
-
-  ////
-
-
-
 
   pinMode(PIN_SPEAKER, OUTPUT);
 
@@ -476,7 +441,6 @@ void play_random_sample() {
   }
 
 
-
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
@@ -484,21 +448,14 @@ void play_random_sample() {
   TCCR1 = 1<<CS10;                  // 1:1 prescale
   GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
   OCR1B = 128;                      // 50% duty at start
-
+  OCR1C = 255;                      // 250kHz carrier, which is the default
 
   // Set up Timer/Counter0 for 8kHz interrupt to output samples.
 //  TCCR0A = 3<<WGM00;                // Fast PWM
 //  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
 //  OCR0A = 124;                      // Divide by 1000
 
-
-
   pinMode(PIN_SPEAKER, OUTPUT);
-
-
-
-
-
 
   DataFlash.BeginRead(Samples[Play-1]);
 
