@@ -481,9 +481,9 @@ void play_random_sample() {
   OCR1C = 255;                      // 250kHz carrier, which is the default
 
   // Set up Timer/Counter0 for 8kHz interrupt to output samples.
-//  TCCR0A = 3<<WGM00;                // Fast PWM
-//  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
-//  OCR0A = 124;                      // Divide by 1000
+  TCCR0A = 3<<WGM00;                // Fast PWM
+  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
+  OCR0A = 124;                      // Divide by 1000
 
   pinMode(PIN_SPEAKER, OUTPUT);
 
@@ -503,7 +503,7 @@ void play_random_sample() {
   }
 
   // apparently i shoudl add these?
-  DataFlash.EndRead();  // Ensure CS high
+//  DataFlash.EndRead();  // Ensure CS high ////////////20260208 removed this line
   //wdt_disable();  // After EndRead() //////////////////////////////////////////////////////////////////////////////////////////////
   //TIMSK = 0;  // Kill ISR
   TIMSK &= ~(1<<OCIE0A);
@@ -515,12 +515,8 @@ void play_random_sample() {
     playTestTone_ms_freq(50, 440);
   }
   
-  //while (StayAwake);              // Wait for playback end
-  //DataFlash.EndRead();  // ADD: Always end (safety) // dont' need this as its part of the function..
 
   DataFlash.PowerDown(true);
-
-  //playTestTone();
 
   // Sleep ~10s using 2x WDT cycles (8s + 2s)
   // Setup pins as inputs to avoid drain during sleep
@@ -529,9 +525,10 @@ void play_random_sample() {
   pinMode(PIN_SCK, INPUT_PULLUP);
   pinMode(PIN_SPEAKER, INPUT);        // Avoid click
 
+  //20260208 enabled the below two lines just incase they work
   // unsure about this
-  //GIFR = 1<<PCIF;                         // Clear flag
-  //GIMSK = 1<<PCIE;                        // Enable interrupts
+  GIFR = 1<<PCIF;                         // Clear flag
+  GIMSK = 1<<PCIE;                        // Enable interrupts
 
 }
 
@@ -540,12 +537,6 @@ void play_random_sample() {
  *  Setup
  *******************************************************************************************************************************/
 void setup() {
-
-  // I think that this breaks it for now?
-  //wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
-  //wdt_enable(WDTO_8S);  // 2 seconds
-  //wdt_reset();
-
   DataFlash.Setup();
   DataFlash.PowerDown(false);
   load_sizes_from_flash();
@@ -567,14 +558,6 @@ void setup() {
 
   ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC to save power
 
-/*
-  // ************* The original Seed **************************
-  // Seed random with ADC noise (pin 5/PB2 floating or unconnected)
-  ADCSRA |= (1<<ADEN);              // Temp enable ADC
-  randomSeed(analogRead(PB2));        // Read PB2 (pin 5) PB1 PB2 PB3 PB4 PB5
-  //srand(analogRead(PB2));           // although i think that it shoudl be srand
-  ADCSRA = ADCSRA & ~(1<<ADEN);     // Disable ADC*/
-
   // it said to add this to the thing, not sure if it helps???
   TCCR0B |= 2<<CS00;              
 
@@ -594,10 +577,11 @@ void setup() {
   WDTCR = (1<<WDCE)|(1<<WDE);
   WDTCR = (1<<WDIE)|(1<<WDE)|(1<<WDP3)|(1<<WDP0);  // 8s interrupt+reset
   // No more changes needed
+  wdt_enable(WDTO_8S);  // 2 seconds
 
 }
 
-int count_loop = 0;
+//int count_loop = 0;
 /*******************************************************************************************************************************
  *  Main Loop
  *******************************************************************************************************************************/
@@ -605,10 +589,10 @@ void loop() {
   wdt_reset();
 
   // Debug thing to play a sound every 8 times in the loop
-  if (count_loop <= 0){
+/*  if (count_loop <= 0){
     count_loop=8;
     playTestTone_ms_freq(50, 440);
-  } else --count_loop;
+  } else --count_loop;*/
 
 
   while (true) {
@@ -641,9 +625,8 @@ void loop() {
       wdt_reset();
       //wdt_disable();
     }    
-    //wdt_enable(WDTO_8S);
+    wdt_enable(WDTO_8S);
     #endif
-    //wdt_reset();
     // Ready for next iteration
   }
 }

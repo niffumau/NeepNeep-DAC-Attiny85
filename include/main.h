@@ -28,7 +28,11 @@
 #define TIME_MAX 450
 #define TIME_MIN 45
 
-#define MAX_SAFE_SAMPLES 32000  // ~8s @8kHz, tune as needed (e.g., 32000=4s)
+// Max samples
+// @8kHz, 8000 samples per second 
+// 32000=4s
+// 40000=5s
+#define MAX_SAFE_SAMPLES 40000
 
 
 
