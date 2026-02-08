@@ -1,11 +1,41 @@
 ////// Includes //////////
 #include "Arduino.h"
 
+#include <avr/wdt.h>  // For Watchdog Timer
 #include <util/delay.h>  // _delay_us()
-#include <EEPROM.h>
+//#include <EEPROM.h>
 
 #include "functions.h"
 
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
+void warning_alarm(uint8_t _count) {
+
+    // Play the first tone so we know its an error
+    playTestTone_ms_freq(100, 100);
+    _delay_ms(100);
+
+    // play the nubmer of tones in count
+    for (uint8_t i=0; i < _count; i++) {
+        playTestTone_ms_freq(50, 440);
+        playTestTone_ms_freq(50, 1000);
+        _delay_ms(100);
+
+    }
+
+
+  // Proper stop sequence
+  TCCR1 = 0;  // Stop Timer1 clock first
+  GTCCR = 0;  // Disable PWM1B mode
+  OCR1B = 0;  // Duty to zero
+  PLLCSR &= ~(1<<PCKE);  // Crucial: Disable PLL clock source (resets to system clk)
+  PINB |= (1<<4);  // Force pin high
+  pinMode(PIN_SPEAKER, INPUT);
+
+}
 
 /***************************************************
  *  
@@ -47,7 +77,7 @@ uint16_t jitterSeed() {
 
 
 void playTestTone() {
-  pinMode(speaker, OUTPUT);
+  pinMode(PIN_SPEAKER, OUTPUT);
   
   // 1kHz PWM on PB4: 64MHz PLL /512 = ~125kHz → OCR1C=125 (1kHz)
   PLLCSR = (1<<PCKE) | (1<<PLLE);
@@ -62,11 +92,12 @@ void playTestTone() {
   for(volatile uint16_t i=0; i<8333; i++) { _delay_us(12); }
   
   // Stop
-  TCCR1 = 0;
-  GTCCR = 0;
-  OCR1B = 0;
-  PINB |= (1<<4);
-  pinMode(speaker, INPUT);        // Avoid click
+  TCCR1 = 0;                    // Stop Timer1 clock first
+  GTCCR = 0;                    // Disable PWM1B mode
+  OCR1B = 0;                    // Duty to zero
+  //PLLCSR &= ~(1<<PCKE);         // Crucial: Disable PLL clock source (resets to system clk)
+  PINB |= (1<<4);               // Force pin high
+  pinMode(PIN_SPEAKER, INPUT);       // Avoid click
 }
 
 /***************************************************
@@ -76,7 +107,7 @@ void playTestTone() {
  */
 // Parameterized version: playTestTone_ms(500);  // 500ms
 void playTestTone_ms(uint16_t ms) {
-  pinMode(speaker, OUTPUT);
+  pinMode(PIN_SPEAKER, OUTPUT);
   
   // 1kHz PWM setup (unchanged)
   PLLCSR = (1<<PCKE) | (1<<PLLE);
@@ -98,7 +129,7 @@ void playTestTone_ms(uint16_t ms) {
   GTCCR = 0;
   OCR1B = 0;
   PINB |= (1<<4);
-  pinMode(speaker, INPUT);
+  pinMode(PIN_SPEAKER, INPUT);
 }
 
 /***************************************************
@@ -107,13 +138,13 @@ void playTestTone_ms(uint16_t ms) {
  * 
  */
 // Full control: playTestTone_ms_freq(100, 1000);  // 100ms @1kHz
-void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
-    pinMode(speaker, OUTPUT);
+void playTestTone_ms_freq(uint16_t _ms, uint16_t _freq_hz) {
+    pinMode(PIN_SPEAKER, OUTPUT);
 
     PLLCSR = (1<<PCKE) | (1<<PLLE);
     while(!(PLLCSR & (1<<PLOCK)));
 
-    uint16_t top = 64000 / freq_hz;
+    uint16_t top = 64000 / _freq_hz;
     if (top > 255) top = 255;
 
     GTCCR = (1<<COM1B0) | (1<<PWM1B);
@@ -122,7 +153,7 @@ void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
     OCR1B = top / 2;
 
     // FIXED: cycles = ms * 1000 (microseconds total)
-    uint32_t total_us = (uint32_t)ms * 1000;
+    uint32_t total_us = (uint32_t)_ms * 1000;
     for(volatile uint32_t i = 0; i < total_us; i++) {
     _delay_us(1);  // Simple µs counter
     }
@@ -130,7 +161,11 @@ void playTestTone_ms_freq(uint16_t ms, uint16_t freq_hz) {
     // Stop
     TCCR1 = 0; GTCCR = 0; OCR1B = 0;
     PINB |= (1<<4);
-    pinMode(speaker, INPUT);
+    pinMode(PIN_SPEAKER, INPUT);
 
  
 }
+
+
+
+

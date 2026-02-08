@@ -35,6 +35,11 @@
 // Pin Definitions
 #define PIN_SPEAKER   PB4
 
+#define PIN_MOSI PB0
+#define PIN_MISO PB1
+#define PIN_SCK PB2
+#define PIN_CS PB3
+
 // Winbond DataFlash commands
 #define PAGEPROG      0x02
 #define READSTATUS    0x05
@@ -47,6 +52,9 @@
 
 #define MAX_SIZES 64   // adjust to your maximum expected number (e.g. 10 samples)
 
+
+// variables export
+extern volatile boolean StayAwake;
 
 
 

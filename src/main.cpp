@@ -19,7 +19,7 @@
 //const int sck = 2, miso = 1, mosi = 0, cs = 3;
 //const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
 const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
-const int speaker = PIN_SPEAKER;
+//const int speaker = PIN_SPEAKER;
 
 
 // Audio player **********************************************
@@ -404,14 +404,56 @@ ISR(WDT_vect) {
     }
 }
 
-
 /*******************************************************************************************************************************
  *  Play Random Sample
  ********************************************************************************************************************************
  * Plays a random sample
  */
 void play_random_sample() {
-  pinMode(speaker, OUTPUT);
+
+  // Here i need to set the things that i need to set that the tone doens't break it?
+  /// trying to debug why 1khz tone breaks it
+
+  uint16_t ms = 100;
+  uint16_t freq_hz = 440;
+
+    pinMode(PIN_SPEAKER, OUTPUT);
+
+    PLLCSR = (1<<PCKE) | (1<<PLLE);
+    while(!(PLLCSR & (1<<PLOCK)));
+
+    uint16_t top = 64000 / freq_hz;
+    if (top > 255) top = 255;
+
+    GTCCR = (1<<COM1B0) | (1<<PWM1B);
+    TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512
+    OCR1C = top;
+    OCR1B = top / 2;
+
+    // FIXED: cycles = ms * 1000 (microseconds total)
+    uint32_t total_us = (uint32_t)ms * 1000;
+    for(volatile uint32_t i = 0; i < total_us; i++) {
+    _delay_us(1);  // Simple µs counter
+    }
+
+    // Stop
+    TCCR1 = 0; GTCCR = 0; OCR1B = 0;
+    PINB |= (1<<4);
+    pinMode(PIN_SPEAKER, INPUT);
+
+
+  ////
+
+
+
+
+  pinMode(PIN_SPEAKER, OUTPUT);
+
+  
+
+  wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
+  wdt_reset();
+
   DataFlash.Setup();
   DataFlash.PowerDown(false);
   StayAwake = true;
@@ -433,23 +475,25 @@ void play_random_sample() {
     playTestTone_ms_freq(20, 200);  // Brief "warning" beep
   }
 
-  wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
-  wdt_reset();
 
-//  PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
+
+  PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
   TIMSK = 0;                        // Timer interrupts OFF
   TCCR1 = 1<<CS10;                  // 1:1 prescale
   GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
   OCR1B = 128;                      // 50% duty at start
-/*
-  // Set up Timer/Counter0 for 8kHz interrupt to output samples.
-  TCCR0A = 3<<WGM00;                // Fast PWM
-  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
-  OCR0A = 124;                      // Divide by 1000*/
 
-  pinMode(speaker, OUTPUT);
+
+  // Set up Timer/Counter0 for 8kHz interrupt to output samples.
+//  TCCR0A = 3<<WGM00;                // Fast PWM
+//  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
+//  OCR0A = 124;                      // Divide by 1000
+
+
+
+  pinMode(PIN_SPEAKER, OUTPUT);
 
 
 
@@ -460,8 +504,8 @@ void play_random_sample() {
 
  // DataFlash.Busy();  // Ensure ready before ISR
 
-  //TIMSK = 1<<OCIE0A;              // Enable compare match
-  TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
+  TIMSK = 1<<OCIE0A;              // Enable compare match
+  //TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
   //wdt_reset();
   // ADD: Timeout safety (ISR not firing? Escape after ~1s)
@@ -492,10 +536,10 @@ void play_random_sample() {
 
   // Sleep ~10s using 2x WDT cycles (8s + 2s)
   // Setup pins as inputs to avoid drain during sleep
-  pinMode(mosi, INPUT_PULLUP);
-  pinMode(miso, INPUT_PULLUP);
-  pinMode(sck, INPUT_PULLUP);
-  pinMode(speaker, INPUT);        // Avoid click
+  pinMode(PIN_MOSI, INPUT_PULLUP);
+  pinMode(PIN_MISO, INPUT_PULLUP);
+  pinMode(PIN_SCK, INPUT_PULLUP);
+  pinMode(PIN_SPEAKER, INPUT);        // Avoid click
 
   // unsure about this
   //GIFR = 1<<PCIF;                         // Clear flag
@@ -504,11 +548,14 @@ void play_random_sample() {
 }
 
 
-
 /*******************************************************************************************************************************
  *  Setup
  *******************************************************************************************************************************/
 void setup() {
+
+  // I think that this breaks it for now?
+  //wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
+  //wdt_reset();
 
   DataFlash.Setup();
   DataFlash.PowerDown(false);
@@ -545,6 +592,9 @@ void setup() {
   #if defined(DEBUG_TONE)
   playTestTone_ms_freq(50, 440);
   #endif
+
+  warning_alarm(2);
+
 
   _delay_ms(1);  // Let noise/timers settle
   uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0 ^ (ADC >> 4);  // Include ADC mux bits
