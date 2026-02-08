@@ -53,7 +53,7 @@ class DF {
     void EndWrite(void);
     void PowerDown(boolean);
     void Busy(void);
-    uint8_t safeReadByte();
+    //uint8_t safeReadByte();
   private:
     unsigned long addr;
     uint8_t Read(void);
@@ -251,6 +251,7 @@ uint8_t DF::ReadByte () {
   return Read();
 }
 
+/*
 uint8_t DF::safeReadByte() {
   uint8_t cnt=100;
   uint8_t data = ReadByte();
@@ -260,7 +261,7 @@ uint8_t DF::safeReadByte() {
     data = ReadByte();;
   }
   return data;
-}
+}*/
 
 
 /***************************************************
@@ -391,11 +392,22 @@ ISR (TIMER0_COMPA_vect) {
   //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
   //wdt_reset();
 
-  if (--Count == 0) {
+  if (Count == 0) {
+    DataFlash.EndRead();
+    //TIMSK = 0;
+    TIMSK &= ~(1<<OCIE0A);
+    StayAwake = false;
+    return;
+  }
+
+  Count--;
+
+  /*if (--Count == 0) {
     DataFlash.EndRead();
     TIMSK = 0;
     StayAwake = false;
-  }
+  }*/
+
   if (Count > MAX_SAFE_SAMPLES) {
     while (1) {
     playTestTone_ms_freq(100, 1000);
@@ -412,6 +424,9 @@ ISR (TIMER0_COMPA_vect) {
  * Not sure why this is required???
  */
 // Watchdog ISR - just wake up, no action needed
+
+volatile bool wdt_alarm = false;
+
 ISR(WDT_vect) { 
   /*while(1) {
     warning_alarm(4);
@@ -435,7 +450,7 @@ void play_random_sample() {
 
   DataFlash.Setup();
   DataFlash.PowerDown(false);
-  StayAwake = true;
+
 
 // this wone worked but apparenlty it is broken for low numbers?
   Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
@@ -458,7 +473,8 @@ void play_random_sample() {
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
-  TIMSK = 0;                        // Timer interrupts OFF
+  //TIMSK = 0;                        // Timer interrupts OFF
+  TIMSK &= ~(1<<OCIE0A);
   TCCR1 = 1<<CS10;                  // 1:1 prescale
   GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
   OCR1B = 128;                      // 50% duty at start
@@ -489,7 +505,8 @@ void play_random_sample() {
   // apparently i shoudl add these?
   DataFlash.EndRead();  // Ensure CS high
   //wdt_disable();  // After EndRead() //////////////////////////////////////////////////////////////////////////////////////////////
-  TIMSK = 0;  // Kill ISR
+  //TIMSK = 0;  // Kill ISR
+  TIMSK &= ~(1<<OCIE0A);
 
   
   if (timeout == 0) {
@@ -537,7 +554,8 @@ void setup() {
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
-  TIMSK = 0;                        // Timer interrupts OFF
+  //TIMSK = 0;                        // Timer interrupts OFF
+  TIMSK &= ~(1<<OCIE0A);
   TCCR1 = 1<<CS10;                  // 1:1 prescale
   GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
   OCR1B = 128;                      // 50% duty at start
@@ -572,6 +590,10 @@ void setup() {
   uint32_t seed = TCNT0 ^ TCNT1 ^ PINB ^ GPIOR0 ^ (ADC >> 4);  // Include ADC mux bits
   randomSeed(seed);
 
+  wdt_disable();  // Clean slate
+  WDTCR = (1<<WDCE)|(1<<WDE);
+  WDTCR = (1<<WDIE)|(1<<WDE)|(1<<WDP3)|(1<<WDP0);  // 8s interrupt+reset
+  // No more changes needed
 
 }
 
@@ -580,7 +602,6 @@ int count_loop = 0;
  *  Main Loop
  *******************************************************************************************************************************/
 void loop() {
-
   wdt_reset();
 
   // Debug thing to play a sound every 8 times in the loop
@@ -609,15 +630,16 @@ void loop() {
     #endif
 
     for(uint16_t i = 0; i < cycles; i++) {
-      // Your 8s WDT sleep
       wdt_reset();
-      WDTCR = (1<<WDCE) | (1<<WDE);
+      // these should already be taken care of from the setup
+      WDTCR = (1<<WDCE) | (1<<WDE);               // Enable config
       WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8s
       set_sleep_mode(SLEEP_MODE_PWR_DOWN);
       sleep_enable();
       sleep_cpu();
       sleep_disable();
-      wdt_disable();
+      wdt_reset();
+      //wdt_disable();
     }    
     //wdt_enable(WDTO_8S);
     #endif
