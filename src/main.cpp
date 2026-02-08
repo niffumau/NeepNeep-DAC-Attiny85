@@ -398,10 +398,7 @@ ISR (TIMER0_COMPA_vect) {
  */
 // Watchdog ISR - just wake up, no action needed
 ISR(WDT_vect) { 
-   while (1) {
-    playTestTone_ms_freq(100, 1000);
-    playTestTone_ms_freq(100,500);
-    }
+  warning_alarm(2);
 }
 
 /*******************************************************************************************************************************
@@ -512,7 +509,8 @@ void setup() {
 
   // I think that this breaks it for now?
   //wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
-  //wdt_reset();
+  wdt_enable(WDTO_8S);  // 2 seconds
+  wdt_reset();
 
   DataFlash.Setup();
   DataFlash.PowerDown(false);
@@ -550,7 +548,7 @@ void setup() {
   playTestTone_ms_freq(50, 440);
   #endif
 
-  warning_alarm(2);
+  //warning_alarm(2);
 
 
   _delay_ms(1);  // Let noise/timers settle
@@ -560,11 +558,18 @@ void setup() {
 
 }
 
-
+int count_loop = 0;
 /*******************************************************************************************************************************
  *  Main Loop
  *******************************************************************************************************************************/
 void loop() {
+  wdt_reset();
+  // Debug thing to play a sound every 8 times in the loop
+  if (count_loop <= 0){
+    count_loop=8;
+    playTestTone_ms_freq(50, 440);
+  } else --count_loop;
+
 
   while (true) {
 
