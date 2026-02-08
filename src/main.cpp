@@ -53,6 +53,7 @@ class DF {
     void EndWrite(void);
     void PowerDown(boolean);
     void Busy(void);
+    uint8_t safeReadByte();
   private:
     unsigned long addr;
     uint8_t Read(void);
@@ -215,6 +216,8 @@ uint8_t DF::Read() {
   return data;
 }
 
+
+
 /***************************************************
  *  
  ***************************************************
@@ -247,6 +250,18 @@ void DF::BeginWrite () {
 uint8_t DF::ReadByte () {
   return Read();
 }
+
+uint8_t DF::safeReadByte() {
+  uint8_t cnt=100;
+  uint8_t data = ReadByte();
+  while((data = 0xFF || data == 0x00) && cnt--)
+  {
+    _delay_us(10);
+    data = ReadByte();;
+  }
+  return data;
+}
+
 
 /***************************************************
  *  
@@ -374,7 +389,7 @@ ISR (TIMER0_COMPA_vect) {
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
   //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
   //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
-  wdt_reset();
+  //wdt_reset();
 
   if (--Count == 0) {
     DataFlash.EndRead();
@@ -398,7 +413,9 @@ ISR (TIMER0_COMPA_vect) {
  */
 // Watchdog ISR - just wake up, no action needed
 ISR(WDT_vect) { 
-  warning_alarm(2);
+  while(1) {
+    warning_alarm(4);
+  }
 }
 
 /*******************************************************************************************************************************
@@ -413,8 +430,8 @@ void play_random_sample() {
 
   
 
-  wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
-  wdt_reset();
+  //wdt_enable(WDTO_120MS);  // Short: forces reset if ISR stalls >120ms
+  //wdt_reset();
 
   DataFlash.Setup();
   DataFlash.PowerDown(false);
@@ -563,7 +580,7 @@ int count_loop = 0;
  *  Main Loop
  *******************************************************************************************************************************/
 void loop() {
-  wdt_reset();
+  //wdt_reset();
   // Debug thing to play a sound every 8 times in the loop
   if (count_loop <= 0){
     count_loop=8;

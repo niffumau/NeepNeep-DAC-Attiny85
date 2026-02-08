@@ -25,7 +25,7 @@ void warning_alarm(uint8_t _count) {
         _delay_ms(100);
 
     }
-  _delay_ms(2000);
+  _delay_ms(4000);
 
   // Proper stop sequence
   TCCR1 = 0;  // Stop Timer1 clock first
