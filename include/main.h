@@ -28,7 +28,7 @@
     // 37 is about 5 min
     // 8 is about 1 min...
 #define TIME_MAX 450
-#define TIME_MIN 45
+#define TIME_MIN 8
 
 // Max samples
 // @8kHz, 8000 samples per second 
