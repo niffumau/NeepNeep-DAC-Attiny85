@@ -36,11 +36,33 @@ W25Q32:
 
 Speaker is driven by a MMBT3904 which grounds the -ve side of the speaker (via the C of the transistor) with the postiive lead going to the 3.3v rail (2032 watch battery)
 
+The ATtiny85 I use
+  - ATTINY85-20SU (LCSC C31540447)
+
+The Flash chip
+  - W25Q32JVSSIQ (LCSC C179173)
+
+The speaker i generally use is:
+  - YS-SBZ9032C03R16 (LCSC C409828)
+
+The transistor thing TRANS NPN 40V 200mA SOT-23
+  - MMBT3904(RANGE:100-300) (LCSC C20526)
+
+I removed the diodes and it seemed to program fine but i did have some issues programming the flash on the one I removed the diodes from, not entirely sure but maybe this will be a problem in the future with the boards that don't have the diodes.
+
+
+The pins i use for the Flash chip are the standard pins for programming the ATTiny along with the chip select pin:
+  #define PIN_MOSI PB0
+  #define PIN_MISO PB1
+  #define PIN_SCK PB2
+  #define PIN_CS PB3
+the pin for the speaker i use is:
+  #define PIN_SPEAKER   PB4
 
 
 ## Audio File
 
-setup audio as 8.000 kHz, 8-bit, Mono
+Audio files shoudl be 8 kHz, 8-Bit mono.
  
 The WAV file format contains a 44-byte header followed by the raw data so i need to skip the first 44 bytes.
 
@@ -97,7 +119,7 @@ FilterCurve:f0="20" f1="50" f2="100" f3="2600" f4="2700" f5="2800" f6="4000" f7=
 
 I use VSCode. and the USBASP programmer.
 
-1.  For new ATtiny13a's, you will most likely have to set the fuses.
+1.  For new ATtiny85's, you will most likely have to set the fuses.
     In VSCode, the platformio button.  Go under attiny85 > Platform > Setfuses
 
 2.  Upload the code.
