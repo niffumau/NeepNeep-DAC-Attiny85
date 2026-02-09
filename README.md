@@ -17,9 +17,11 @@ http://www.technoblogy.com/show?2XJD
 I have tried to convert this all to USI but it conflicts with my ISR routine I think... it didn't go well.
 
 ## Hardware
-Essentiall this is a ATtiny85 with a flash chip.  The PCB design is https://gitlab.niffum.net/kicad/neepneep-dac-kicad.
+Essentiall this is a ATtiny85 with a flash chip.  The PCB design is 
+  - https://github.com/niffumau/NeepNeep-KiCAD
+  - https://gitlab.niffum.net/kicad/neepneep-dac-kicad
 
-I am a little concerned that i'm programming the ATtiny85 with 5V rail, apparenlty can program it with a 3.3v programmer which is probaly what i shoudl be looking into.
+I am a little concerned that i'm programming the ATtiny85 with 5V rail, apparenlty can program it with a 3.3v programmer which is probaly what i shoudl be looking into.  Yes, i'm pretty sure that its not really tollerant of 5V so ive moved to using a USBASP that is 3.3v.
 
 ATtiny85:
   - 8 KB flash
@@ -33,7 +35,6 @@ W25Q32:
   - Temp Range: -40°C to +85°C (fits Perth's climate for outdoor IoT/DIY).
 
 Speaker is driven by a MMBT3904 which grounds the -ve side of the speaker (via the C of the transistor) with the postiive lead going to the 3.3v rail (2032 watch battery)
-
 
 
 
