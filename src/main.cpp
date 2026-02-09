@@ -45,6 +45,8 @@ uint8_t Num_Samples = 0;
 class DF {
   public:
     boolean Setup();
+    boolean Setup_READID();
+    boolean Setup_9F();
     void BeginRead(uint32_t addr);
     void BeginWrite(void);
     uint8_t ReadByte(void);
@@ -108,12 +110,19 @@ class DF {
 }*/
 
 boolean DF::Setup() {
+  return Setup_READID();
+  //return Setup_9F();
+}
+
+boolean DF::Setup_READID() {
   uint8_t manID, devID;
+  boolean _return = true;
   pinMode(PIN_CS, OUTPUT); 
   digitalWrite(PIN_CS, HIGH);
   pinMode(PIN_SCK, OUTPUT); digitalWrite(PIN_SCK, LOW);
   pinMode(PIN_MOSI, OUTPUT); digitalWrite(PIN_MOSI, HIGH);
-  pinMode(PIN_MISO, INPUT);  // Or INPUT_PULLUP if noisy
+  //pinMode(PIN_MISO, INPUT);  // Or INPUT_PULLUP if noisy
+  pinMode(PIN_MISO, INPUT_PULLUP);
   _delay_ms(10);  // Power stable delay
   
   digitalWrite(PIN_CS, LOW);
@@ -127,17 +136,66 @@ boolean DF::Setup() {
   
   digitalWrite(PIN_CS, HIGH);
   
-  if (manID != 0xEF) {
+  
+  if (manID != 0xEF) {    // this is often wrong after the first time.. so ignore it?
     //warning_alarm(4);
-    return false;
+    _return = false;
+  }
+
+  if (devID != 0x15 && devID != 0x16) {
+    //warning_alarm(2);
+    _return = false;
+  }
+  
+  return _return;
+}
+
+
+
+// This is another way of doing it but it doens't work the 2nd or 3rd time around
+boolean DF::Setup_9F() {
+  uint8_t manID, memType, devID;
+  boolean _return = true;
+  pinMode(PIN_CS, OUTPUT); 
+  _delay_us(10);
+  digitalWrite(PIN_CS, HIGH);
+  pinMode(PIN_SCK, OUTPUT); digitalWrite(PIN_SCK, LOW);
+  pinMode(PIN_MOSI, OUTPUT); digitalWrite(PIN_MOSI, HIGH);
+  //pinMode(PIN_MISO, INPUT);  // Or INPUT_PULLUP if noisy
+  pinMode(PIN_MISO, INPUT_PULLUP);
+  _delay_ms(10);  // Power stable delay
+
+
+  digitalWrite(PIN_CS, LOW);
+  _delay_us(10);  // CS setup time
+
+  Write(0x9F);    // 0x9F JEDEC ID
+
+  manID   = Read();   // should be 0xEF
+  memType = Read();   // should be 0x40
+  devID   = Read();   // 15h (16Mbit) or 16h (32Mbit) should be 0x16 for W25Q32JV
+  
+  _delay_us(10);
+  digitalWrite(PIN_CS, HIGH);
+  
+  
+  // often manID is not returned as 0xEF for some reason???
+  if (manID != 0xEF) {  // often the first byte, this one is returned a
+    //warning_alarm(4);
+    _return = false;
+  }
+  if (memType != 0x40) {
+    //warning_alarm(10);
+    _return = false;
   }
   if (devID != 0x15 && devID != 0x16) {
     warning_alarm(5);
-    return false;
+    _return = false;
   }
   
-  return true;
+  return _return;
 }
+
 
 
 /***************************************************
@@ -540,7 +598,14 @@ ISR(WDT_vect) {
  */
 void play_random_sample() {
   pinMode(PIN_SPEAKER, OUTPUT);
+
+  /*while (!DataFlash.Setup()) {
+    //playTestTone_ms_freq(20, 440);
+    _delay_us(20);
+
+  }*/
   DataFlash.Setup();
+
   DataFlash.Wake(); // DataFlash.PowerDown(false);
 
   /// Create Random Number ///
@@ -620,6 +685,27 @@ void play_random_sample() {
 
 }
 
+#if defined(WIPE_ATTINY)
+// "Dead Sleep" - Tri-states all SPI pins, sleeps forever
+void setup() {
+  // Set SPI pins high-Z input (no drive)
+  pinMode(PIN_MOSI, INPUT);    // PB0 - no pullup
+  pinMode(PIN_MISO, INPUT);    // PB1 - no pullup  
+  pinMode(PIN_SCK, INPUT);     // PB2 - no pullup
+  pinMode(PIN_CS, INPUT);      // PB3? - no pullup
+  
+  // Disable all modules
+  ADCSRA = 0;  // ADC off
+  PRR = 0xFF;  // Power-down everything possible
+  
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+  sleep_enable();
+  sleep_cpu();  // Sleep forever, wake=power cycle
+}
+
+void loop() {}  // Never reached
+
+#else
 
 /*******************************************************************************************************************************
  *  Setup
@@ -718,3 +804,4 @@ void loop() {
     // Ready for next iteration
   }
 }
+#endif

@@ -15,24 +15,24 @@
 void warning_alarm(uint8_t _count) {
 
     // Play the first tone so we know its an error
-    playTestTone_ms_freq(100, 1000);
-    _delay_ms(200);
+    playTestTone_ms_freq(50, 1000);
+    _delay_ms(100);
 
     // play the nubmer of tones in count
     for (uint8_t i=0; i < _count; i++) {
-        playTestTone_ms_freq(50, 440);
+        playTestTone_ms_freq(30, 440);
        // playTestTone_ms_freq(50, 1000);
-        _delay_ms(50);
+        _delay_ms(30);
 
     }
-  _delay_ms(1000);
+  _delay_ms(500);
 
-  // Proper stop sequence
+  /*// Proper stop sequence
   TCCR1 = 0;  // Stop Timer1 clock first
   GTCCR = 0;  // Disable PWM1B mode
   OCR1B = 0;  // Duty to zero
   PLLCSR &= ~(1<<PCKE);  // Crucial: Disable PLL clock source (resets to system clk)
-  PINB |= (1<<4);  // Force pin high
+  PINB |= (1<<4);  // Force pin high*/
   pinMode(PIN_SPEAKER, INPUT);
 
 }
