@@ -1,0 +1,13 @@
+pages:
+  image: alpine:latest
+  script:
+  - apt update && apk add doxygen
+  - export PROJECT_NAME="$CI_PROJECT_NAME"
+  - doxygen Doxyfile
+  - mv documentation/html/ public/
+
+  artifacts:
+    paths:
+      - public/
+  only:
+    - master

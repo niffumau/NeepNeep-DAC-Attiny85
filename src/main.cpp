@@ -3,26 +3,26 @@
 
  */
 
+/**
+ * @file
+ * @brief ATTiny13A/85 audio player: Plays random raw audio samples from Winbond W25Q SPI DataFlash.
+ * 
+ * Loads sample offsets from flash (little-endian uint32_t array), selects random sample, streams via
+ * 8kHz ISR (Timer0) → 250kHz PWM carrier (Timer1 PLL64x). Sleeps via 8s WDT between plays.
+ * Supports 16/32Mbit flashes (ID 0x15/0x16). Power-optimized with PWR_DOWN and pin tri-stating.
+ */
+
 #include <Arduino.h>
 #include <avr/sleep.h>
 #include <avr/wdt.h>  // For Watchdog Timer
 #include <stdlib.h>   // For rand() / srand()
 #include <util/delay.h>  // _delay_us()
 
-//#include <EEPROM.h>
 
 #include "main.h"
+#include "sleep.h"
 #include "functions.h"
 
-
-// ATtiny85 pins used for dataflash
-//const int sck = 2, miso = 1, mosi = 0, cs = 3;
-//const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
-//const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
-//const int speaker = PIN_SPEAKER;
-
-
-// Audio player **********************************************
 
 
 volatile boolean StayAwake = true;
@@ -42,26 +42,103 @@ uint8_t Num_Samples = 0;
  ***************************************************
  * 
  */
+
+/**
+ * @brief Winbond W25Qxx SPI DataFlash driver class for ATTiny (bit-banged SPI).
+ * 
+ * Supports READID (0x9F), READDATA (0x03), PAGEPROG (0x02), CHIPERASE (0xC7), power/sleep modes.
+ * Bit-banged on PB0-3 (MOSI/SCK/MISO/CS). Handles Busy polling, 24-bit addressing.
+ * Designed for raw 8-bit mono samples @8kHz.
+ */
 class DF {
   public:
+    /**
+     * @brief Initializes SPI pins and verifies flash ID (Winbond 0xEF + 16/32Mbit 0x15/0x16).
+     * @return true if valid chip detected, false otherwise (triggers warning_alarm).
+     */  
     boolean Setup();
+
+    /**
+     * @brief JEDEC READID (0x9F) variant—primary init method.
+     * @return true if manID=0xEF && devID=0x15/16.
+     */
     boolean Setup_READID();
+
+    /**
+     * @brief Alternative 0x9F JEDEC ID read (memType check)—less reliable on retries.
+     * @return true if manID=0xEF && memType=0x40 && devID=0x15/16.
+     */
     boolean Setup_9F();
+
+    /**
+     * @brief Starts sequential read at 24-bit address (wakes chip first).
+     * @param addr 24-bit flash address (0-16/32Mbit).
+     */    
     void BeginRead(uint32_t addr);
+
+    /**
+     * @brief Starts page-program write session + CHIPERASE.
+     */    
     void BeginWrite(void);
+
+    /**
+     * @brief Reads 1 SPI byte during active read.
+     * @return Byte from MISO (assembly-nop timed).
+     */
     uint8_t ReadByte(void);
+
+    /**
+     * @brief Writes 1 SPI byte during active write (auto page boundary handling).
+     * @param data Byte to write (addr++ internally).
+     */
     void WriteByte(uint8_t data);
+
+    /**
+     * @brief Ends read session (CS high).
+     */
     void EndRead(void);
+
+    /**
+     * @brief Ends write + polls BUSY (status bit 0).
+     */
     void EndWrite(void);
+
+    /**
+     * @brief Power-down (deep sleep, <1µA) or wake (3µs tRES1).
+     * @param on true=powerdown, false=wake.
+     */
     void PowerDown(boolean);
+
+    /**
+     * @brief Enters deep sleep (alias for PowerDown(true)).
+     */
     void Sleep (void);
+
+    /**
+     * @brief Wakes from deep sleep (alias for PowerDown(false)).
+     */
     void Wake (void);
+
+    /**
+     * @brief Polls BUSY status (retries 50x, alarms on timeout).
+     */
     void Busy(void);
     //uint8_t safeReadByte();
+
   private:
-    unsigned long addr;
+    unsigned long addr;   ///< Current 24-bit address.
+
+    /**
+     * @brief Bit-banged SPI byte transmit (MSB first, PBx direct).
+     * @param data Byte to MOSI.
+     */
     uint8_t Read(void);
+
+    /**
+     * @brief Issues Write Enable (0x06) latch.
+     */
     void Write(uint8_t);
+
     //void Busy(void);
     void WriteEnable(void);
 };
@@ -402,6 +479,7 @@ void DF::EndWrite (void) {
   Busy();
 }
 
+// Global instance
 DF DataFlash;
 
 
@@ -410,6 +488,13 @@ DF DataFlash;
  *  
  ***************************************************
  * 
+ */
+
+/**
+ * @brief Loads sample offsets table from flash addr 0 (null-terminated uint32_t little-endian).
+ * 
+ * Reverse-byte swaps for AVR big-endian. DEBUG_FORCE_SIZES overrides with hardcoded table.
+ * Beeps Num_Samples on load (commented).
  */
 void load_sizes_from_flash(void) {
   DataFlash.BeginRead(0);
@@ -491,6 +576,12 @@ void load_sizes_from_flash(void) {
  * 
  */
 
+/**
+ * @brief 8kHz sample streamer ISR (Timer0 COMP A).
+ * 
+ * Reads flash byte → OCR1B PWM duty. Ends playback at Count=0 (Sleeps flash, disables ISR).
+ * Safety: Infinite alarm if Count > MAX_SAFE_SAMPLES.
+ */
 ISR (TIMER0_COMPA_vect) {
 
   // Check that we are not over the number of maximum safe samples
@@ -540,6 +631,9 @@ ISR (TIMER0_COMPA_vect) {
 
 volatile bool wdt_alarm = false;
 
+/**
+ * @brief WDT wake ISR (8s)—just resets (handled by sleep_function).
+ */
 ISR(WDT_vect) { 
   /*while(1) {
     warning_alarm(4);
@@ -550,6 +644,13 @@ ISR(WDT_vect) {
  *  Play Random Sample
  ********************************************************************************************************************************
  * Plays a random sample
+ */
+
+/**
+ * @brief Core playback: Random sample → 250kHz PWM (Timer1 PLL64x) modulated @8kHz ISR.
+ * 
+ * Truncates >MAX_SAFE_SAMPLES. 1s timeout safety (alarms on stall). Tri-states pins post-play.
+ * DEBUG_FIXED_WAV forces specific sample.
  */
 void play_random_sample() {
   pinMode(PIN_SPEAKER, OUTPUT);
@@ -641,7 +742,7 @@ void play_random_sample() {
 }
 
 #if defined(WIPE_ATTINY)
-// "Dead Sleep" - Tri-states all SPI pins, sleeps forever
+/** @brief Permanent dead sleep mode: Tri-states pins, PWR_DOWN forever (power-cycle wake). */
 void setup() {
   // Set SPI pins high-Z input (no drive)
   pinMode(PIN_MOSI, INPUT);    // PB0 - no pullup
@@ -665,6 +766,10 @@ void loop() {}  // Never reached
 /*******************************************************************************************************************************
  *  Setup
  *******************************************************************************************************************************/
+
+/**
+ * @brief One-time init: Flash setup, load offsets, timers/PWM/PLL/WDT, random seed.
+ */
 void setup() {
   DataFlash.Setup();
   DataFlash.Wake(); // DataFlash.PowerDown(false);
@@ -710,10 +815,16 @@ void setup() {
 
 }
 
-//int count_loop = 0;
+
 /*******************************************************************************************************************************
  *  Main Loop
  *******************************************************************************************************************************/
+
+/**
+ * @brief Infinite loop: play_random_sample() → sleep_function() → repeat.
+ * 
+ * WDT reset each iteration. DEBUG_TONE replaces with test tone.
+ */
 void loop() {
   wdt_reset();
 
@@ -724,7 +835,7 @@ void loop() {
   } else --count_loop;*/
 
 
-  while (true) {
+  //while (true) {
 
     #if defined(DEBUG_TONE)
     playTestTone_ms_freq(50, 440);
@@ -733,30 +844,12 @@ void loop() {
     #endif
 
 
-    #if !defined(DEBUG_NO_DELAY)
-    uint16_t time_max = TIME_MAX; 
-    uint16_t time_min = TIME_MIN;
-    uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
 
-    #if defined(DEBUG_FIXED_8S) 
-    cycles = 1;
-    #endif
 
-    for(uint16_t i = 0; i < cycles; i++) {
-      wdt_reset();
-      // these should already be taken care of from the setup
-      WDTCR = (1<<WDCE) | (1<<WDE);               // Enable config
-      WDTCR = (1<<WDIE) | (1<<WDP3) | (1<<WDP0);  // 8s
-      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-      sleep_enable();
-      sleep_cpu();
-      sleep_disable();
-      wdt_reset();
-      //wdt_disable();
-    }    
-    wdt_enable(WDTO_8S);
-    #endif
+    sleep_function();
+    
+   
     // Ready for next iteration
-  }
+  //}
 }
 #endif
