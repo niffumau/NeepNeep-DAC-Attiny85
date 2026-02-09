@@ -15,17 +15,17 @@
 void warning_alarm(uint8_t _count) {
 
     // Play the first tone so we know its an error
-    playTestTone_ms_freq(500, 1000);
-    _delay_ms(100);
+    playTestTone_ms_freq(100, 1000);
+    _delay_ms(200);
 
     // play the nubmer of tones in count
     for (uint8_t i=0; i < _count; i++) {
         playTestTone_ms_freq(50, 440);
-        playTestTone_ms_freq(50, 1000);
-        _delay_ms(100);
+       // playTestTone_ms_freq(50, 1000);
+        _delay_ms(50);
 
     }
-  _delay_ms(4000);
+  _delay_ms(1000);
 
   // Proper stop sequence
   TCCR1 = 0;  // Stop Timer1 clock first

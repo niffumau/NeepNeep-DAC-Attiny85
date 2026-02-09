@@ -18,7 +18,7 @@
 // ATtiny85 pins used for dataflash
 //const int sck = 2, miso = 1, mosi = 0, cs = 3;
 //const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
-const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
+//const int sck = PB2, miso = PB1, mosi = PB0, cs = PB3;
 //const int speaker = PIN_SPEAKER;
 
 
@@ -52,6 +52,8 @@ class DF {
     void EndRead(void);
     void EndWrite(void);
     void PowerDown(boolean);
+    void Sleep (void);
+    void Wake (void);
     void Busy(void);
     //uint8_t safeReadByte();
   private:
@@ -62,29 +64,81 @@ class DF {
     void WriteEnable(void);
 };
 
-/***************************************************
- *  
- ***************************************************
+/************************************************************************************//**
+ * @brief Sets up the flash chip thing
+ * 
  * 
  */
-boolean DF::Setup () {
-  uint8_t manID, devID;
-  pinMode(cs, OUTPUT); digitalWrite(cs, HIGH); 
-  pinMode(sck, OUTPUT);
-  pinMode(mosi, OUTPUT);
-  pinMode(miso, INPUT);
-  digitalWrite(sck, LOW); digitalWrite(mosi, HIGH);
+/*boolean DF::Setup_OLD () {
+  uint8_t manID, devID;   // Manufacturer ID and Device ID
+  boolean _return = true;
+  pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH);    
+  pinMode(PIN_SCK, OUTPUT);
+  pinMode(PIN_MOSI, OUTPUT);
+  pinMode(PIN_MISO, INPUT);
+  digitalWrite(PIN_SCK, LOW); digitalWrite(PIN_MOSI, HIGH);
   delay(1);
-  digitalWrite(cs, LOW);
+  digitalWrite(PIN_CS, LOW);
   delay(100);
   Write(READID); Write(0);Write(0);Write(0);
   manID = Read();
-  (void)manID;
+  (void)manID;        // This tells the compiler to implicity ignore this value
+  //Read();  // Dummy byte 1
+  //Read();  // Dummy byte 2  
+
+  if (manID != 0xEF) {
+    _return = false;
+    warning_alarm(4);
+  }
+
   devID = Read();
-  digitalWrite(cs, HIGH);
+  //  W25Q16 → 0x15
+  //  W25Q32 → 0x16
+  digitalWrite(PIN_CS, HIGH);
   
-  return (devID == 0x15); // Found correct device
+  //if (devID != 0x15) while(1) warning_alarm(5);
+  if (devID != 0x15 && devID != 0x16) {
+    _return = false;
+    warning_alarm(5);
+  }
+
+
+  //return (devID != 0x15 && devID != 0x16); // Found correct device Returns True if the deviceID is 0x15
+  return _return;
+}*/
+
+boolean DF::Setup() {
+  uint8_t manID, devID;
+  pinMode(PIN_CS, OUTPUT); 
+  digitalWrite(PIN_CS, HIGH);
+  pinMode(PIN_SCK, OUTPUT); digitalWrite(PIN_SCK, LOW);
+  pinMode(PIN_MOSI, OUTPUT); digitalWrite(PIN_MOSI, HIGH);
+  pinMode(PIN_MISO, INPUT);  // Or INPUT_PULLUP if noisy
+  _delay_ms(10);  // Power stable delay
+  
+  digitalWrite(PIN_CS, LOW);
+  _delay_us(10);  // CS setup time
+  
+  Write(READID);    // 0x9F JEDEC ID
+  Write(0); Write(0); Write(0);  // 3 dummy addr bytes
+  
+  manID = Read();   // EFh (Winbond)
+  devID = Read();   // 15h (16Mbit) or 16h (32Mbit)
+  
+  digitalWrite(PIN_CS, HIGH);
+  
+  if (manID != 0xEF) {
+    //warning_alarm(4);
+    return false;
+  }
+  if (devID != 0x15 && devID != 0x16) {
+    warning_alarm(5);
+    return false;
+  }
+  
+  return true;
 }
+
 
 /***************************************************
  *  DF:Write
@@ -95,11 +149,11 @@ boolean DF::Setup () {
 void DF::Write (uint8_t data) {
   uint8_t bit = 0x80;
   while (bit) {
-    if (data & bit) PORTB = PORTB | (1<<mosi);
-    else PORTB = PORTB & ~(1<<mosi);
-    PINB = 1<<sck;                        // sck high
+    if (data & bit) PORTB = PORTB | (1<<PIN_MOSI);
+    else PORTB = PORTB & ~(1<<PIN_MOSI);
+    PINB = 1<<PIN_SCK;                        // sck high
     bit = bit>>1;
-    PINB = 1<<sck;                        // sck low
+    PINB = 1<<PIN_SCK;                        // sck low
   }
 }
 
@@ -133,10 +187,13 @@ void DF::Busy () {
 
 void DF::Busy() {
   uint8_t cnt=50;
-  digitalWrite(cs, LOW);
+  digitalWrite(PIN_CS, LOW);
   Write(READSTATUS);
   while((Read() & 1) && cnt--);  // Exit if stuck
-  digitalWrite(cs, HIGH);
+  if (cnt==0) {
+    while(1) warning_alarm(6);
+  }
+  digitalWrite(PIN_CS, HIGH);
 }
 
 /***************************************************
@@ -145,9 +202,9 @@ void DF::Busy() {
  * 
  */
 void DF::WriteEnable () {
-  digitalWrite(cs, 0);
+  digitalWrite(PIN_CS, 0);
   Write(WRITEENABLE);
-  digitalWrite(cs, 1);
+  digitalWrite(PIN_CS, 1);
 }
 
 /***************************************************
@@ -156,9 +213,19 @@ void DF::WriteEnable () {
  * 
  */
 void DF::PowerDown (boolean on) {
-  digitalWrite(cs, 0);
-  if (on) Write(POWERDOWN); else Write(RELEASEPD);
-  digitalWrite(cs, 1);
+  digitalWrite(PIN_CS, LOW);
+  if (on) {   // Power Down the chip
+    Write(POWERDOWN);
+    digitalWrite(PIN_CS, HIGH);
+  } else {   // Wake up the chip
+    Write(RELEASEPD);
+    digitalWrite(PIN_CS, HIGH);
+    _delay_us(5);   // tRES1 AFTER CS high
+  }
+  
+  //if (!on) {
+    
+  //}
 }
 
 /***************************************************
@@ -166,9 +233,36 @@ void DF::PowerDown (boolean on) {
  ***************************************************
  * 
  */
+void DF::Sleep (void) {
+  digitalWrite(PIN_CS, LOW);  
+  Write(POWERDOWN);
+  digitalWrite(PIN_CS, HIGH);
+}  
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
+void DF::Wake (void) {
+  digitalWrite(PIN_CS, LOW);
+  Write(RELEASEPD);
+  digitalWrite(PIN_CS, HIGH);
+  _delay_us(5);   // tRES1 AFTER CS high
+  
+}  
+
+
+
+/***************************************************
+ *  
+ ***************************************************
+ * 
+ */
 void DF::BeginRead (uint32_t start) {
+  Wake();     // make sure it is awake first...
+
   addr = start;
-  digitalWrite(cs, 0);
+  digitalWrite(PIN_CS, 0);
   Write(READDATA);
   Write(addr>>16);
   Write(addr>>8);
@@ -207,10 +301,10 @@ uint8_t DF::Read() {
   uint8_t data = 0;
   uint8_t bit = 0x80;
   while(bit) {
-    PINB = 1<<sck;                    // SCK ↑
+    PINB = 1<<PIN_SCK;                    // SCK ↑
     asm volatile("nop\nnop\nnop");    // 3 cycles delay (~0.4µs @8MHz)
-    if(PINB & 1<<miso) data |= bit;   // Sample stable
-    PINB = 1<<sck;                    // SCK ↓
+    if(PINB & 1<<PIN_MISO) data |= bit;   // Sample stable
+    PINB = 1<<PIN_SCK;                    // SCK ↓
     bit >>= 1;
   }
   return data;
@@ -224,7 +318,7 @@ uint8_t DF::Read() {
  * 
  */
 void DF::EndRead(void) {
-  digitalWrite(cs, 1);
+  digitalWrite(PIN_CS, 1);
 }
 
 /***************************************************
@@ -236,9 +330,9 @@ void DF::BeginWrite () {
   addr = 0;
   // Erase DataFlash
   WriteEnable();
-  digitalWrite(cs, 0);
+  digitalWrite(PIN_CS, 0);
   Write(CHIPERASE);
-  digitalWrite(cs, 1);
+  digitalWrite(PIN_CS, 1);
   Busy();
 }
 
@@ -272,10 +366,10 @@ uint8_t DF::safeReadByte() {
 void DF::WriteByte (uint8_t data) {
   // New page
   if ((addr & 0xFF) == 0) {
-    digitalWrite(cs, 1);
+    digitalWrite(PIN_CS, 1);
     Busy();
     WriteEnable();
-    digitalWrite(cs, 0);
+    digitalWrite(PIN_CS, 0);
     Write(PAGEPROG);
     Write(addr>>16);
     Write(addr>>8);
@@ -291,7 +385,7 @@ void DF::WriteByte (uint8_t data) {
  * 
  */
 void DF::EndWrite (void) {
-  digitalWrite(cs, 1);
+  digitalWrite(PIN_CS, 1);
   Busy();
 }
 
@@ -385,21 +479,34 @@ void load_sizes_from_flash(void) {
  */
 
 ISR (TIMER0_COMPA_vect) {
-  char sample = DataFlash.ReadByte();
-  OCR1B = sample;
+
+  // Check that we are not over the number of maximum safe samples
+  // it should NOT end up here
+  if (Count > MAX_SAFE_SAMPLES) {
+    while (1) {
+      warning_alarm(8);
+    }
+  }
+
+  // Maybe check that data read is ok ? 
+
+
+  char sample = DataFlash.ReadByte();   // Read the sample
+  OCR1B = sample;                       // Put the sample in the duty cycle thing
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
   //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
   //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
   //wdt_reset();
 
+  // Apparently one of these two shoudl work, possibly the second one breaks the code? //
   if (Count == 0) {
     DataFlash.EndRead();
-    //TIMSK = 0;
+    DataFlash.Sleep();  // DataFlash.PowerDown(true);
+  
     TIMSK &= ~(1<<OCIE0A);
     StayAwake = false;
     return;
   }
-
   Count--;
 
   /*if (--Count == 0) {
@@ -408,22 +515,15 @@ ISR (TIMER0_COMPA_vect) {
     StayAwake = false;
   }*/
 
-  if (Count > MAX_SAFE_SAMPLES) {
-    while (1) {
-    playTestTone_ms_freq(100, 1000);
-    playTestTone_ms_freq(100, 800);
-    playTestTone_ms_freq(100,500);
-    }
-  }
+
 }
 
 
 /***************************************************
  *  Watchdog ISR
  ***************************************************
- * Not sure why this is required???
+ * Watchdog ISR - just wake up, no action needed
  */
-// Watchdog ISR - just wake up, no action needed
 
 volatile bool wdt_alarm = false;
 
@@ -440,32 +540,30 @@ ISR(WDT_vect) {
  */
 void play_random_sample() {
   pinMode(PIN_SPEAKER, OUTPUT);
-
   DataFlash.Setup();
-  DataFlash.PowerDown(false);
+  DataFlash.Wake(); // DataFlash.PowerDown(false);
 
-
+  /// Create Random Number ///
   // this wone worked but apparenlty it is broken for low numbers?
   Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
   //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
 
-  #if defined(DEBUG_FIXED_WAV)
+  #if defined(DEBUG_FIXED_WAV)      // Force a fixed wave file play
   Play = DEBUG_FIXED_WAV;
   #endif
 
   StayAwake = true;
   Count = Samples[Play] - Samples[Play-1];
 
-  if(Count > MAX_SAFE_SAMPLES) {
-    Count = MAX_SAFE_SAMPLES;  // Truncate long samples
-    playTestTone_ms_freq(20, 200);  // Brief "warning" beep
+  if(Count > MAX_SAFE_SAMPLES) {      // Check if the sample is longer than the maximum number of samples?
+    Count = MAX_SAFE_SAMPLES;         // If so, trunkate teh sample to the maximum length
+    playTestTone_ms_freq(20, 440);    // Brief "warning" beep
   }
 
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
-  //TIMSK = 0;                        // Timer interrupts OFF
-  TIMSK &= ~(1<<OCIE0A);
+  TIMSK &= ~(1<<OCIE0A);            // Timer Interrupts Off
   TCCR1 = 1<<CS10;                  // 1:1 prescale
   GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
   OCR1B = 128;                      // 50% duty at start
@@ -477,6 +575,8 @@ void play_random_sample() {
   OCR0A = 124;                      // Divide by 1000
 
   pinMode(PIN_SPEAKER, OUTPUT);
+
+  
 
   DataFlash.BeginRead(Samples[Play-1]);
 
@@ -493,18 +593,18 @@ void play_random_sample() {
 
   // apparently i shoudl add these?
   //wdt_disable();  // After EndRead() //////////////////////////////////////////////////////////////////////////////////////////////
-  //TIMSK = 0;  // Kill ISR
   TIMSK &= ~(1<<OCIE0A);
 
   
   if (timeout == 0) {
     //TIMSK = 0;  // Force stop /// this was already done above...
     // Optional: blink LED or skip sleep, we don't have an LED
-    playTestTone_ms_freq(50, 440);
+    //playTestTone_ms_freq(50, 440);
+    while (1) warning_alarm(7);
   }
   
 
-  DataFlash.PowerDown(true);
+
 
   // Sleep ~10s using 2x WDT cycles (8s + 2s)
   // Setup pins as inputs to avoid drain during sleep
@@ -526,9 +626,9 @@ void play_random_sample() {
  *******************************************************************************************************************************/
 void setup() {
   DataFlash.Setup();
-  DataFlash.PowerDown(false);
+  DataFlash.Wake(); // DataFlash.PowerDown(false);
   load_sizes_from_flash();
-
+  //DataFlash.PowerDown(true);
 
   PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
 
@@ -565,7 +665,7 @@ void setup() {
   WDTCR = (1<<WDCE)|(1<<WDE);
   WDTCR = (1<<WDIE)|(1<<WDE)|(1<<WDP3)|(1<<WDP0);  // 8s interrupt+reset
   // No more changes needed
-  wdt_enable(WDTO_8S);  // 2 seconds
+  wdt_enable(WDTO_8S);  
 
 }
 
