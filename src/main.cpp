@@ -13,6 +13,7 @@
 
 #include "main.h"
 #include "functions.h"
+//#include "flash.h"
 
 
 // ATtiny85 pins used for dataflash
@@ -33,9 +34,36 @@ uint32_t Samples[MAX_SIZES];
 uint8_t Num_Samples = 0;
 
 
+
+
 /*******************************************************************************************************************************
  *  Flash Functions
  *******************************************************************************************************************************/
+
+void usi_spi_init() {
+  DDRB |=  (1 << PB0) | (1 << PB2); // MOSI, SCK
+  DDRB &= ~(1 << PB1);              // MISO
+
+  USICR = 0;
+  USICR =
+    (1 << USIWM0) |   // 3-wire
+    (1 << USICS1);    // software clock
+}
+
+
+static inline uint8_t usi_spi_transfer(uint8_t data) {
+  USIDR = data;
+  USISR = (1 << USIOIF);   // clear overflow flag
+
+  do {
+    // Toggle clock
+    USICR = (1 << USIWM0) | (1 << USICS1) | (1 << USITC);
+    USICR = (1 << USIWM0) | (1 << USICS1) | (1 << USITC);
+  } while (!(USISR & (1 << USIOIF)));
+
+  return USIDR;
+}
+
 
 /***************************************************
  *  
@@ -204,16 +232,10 @@ boolean DF::Setup_9F() {
  * 
  */
 
-void DF::Write (uint8_t data) {
-  uint8_t bit = 0x80;
-  while (bit) {
-    if (data & bit) PORTB = PORTB | (1<<PIN_MOSI);
-    else PORTB = PORTB & ~(1<<PIN_MOSI);
-    PINB = 1<<PIN_SCK;                        // sck high
-    bit = bit>>1;
-    PINB = 1<<PIN_SCK;                        // sck low
-  }
+void DF::Write(uint8_t data) {
+  usi_spi_transfer(data);
 }
+
 
 
 /***************************************************
@@ -221,27 +243,6 @@ void DF::Write (uint8_t data) {
  ***************************************************
  * 
  */
-/*
-void DF::Busy () {
-  digitalWrite(cs, 0);
-  Write(READSTATUS);
-  while ((Read() & 1) != 0);
-  digitalWrite(cs, 1);
-}*/
-// apparenlty the one above coudl be problmenatic
-/*void DF::Busy() {
-  digitalWrite(cs, LOW);
-  Write(READSTATUS);
-  uint8_t cnt=100; while((Read()&1) && cnt--);
-  digitalWrite(cs, HIGH);
-}*/
-/*void DF::Busy() {
-  digitalWrite(cs, LOW);
-  Write(READSTATUS);
-  uint8_t cnt=100;
-  while((Read()&1) && cnt--) {}  // Escape if stuck
-  digitalWrite(cs, HIGH);
-}*/
 
 void DF::Busy() {
   uint8_t cnt=50;
@@ -332,42 +333,9 @@ void DF::BeginRead (uint32_t start) {
  ***************************************************
  * 
  */
-/*uint8_t DF::Read () {
-  uint8_t data = 0;
-  uint8_t bit = 0x80;
-  while (bit) {
-    PINB = 1<<sck;                        // sck high
-    if (PINB & 1<<miso) data = data | bit;
-    PINB = 1<<sck;                        // sck low
-    bit = bit>>1;
-  }
-  return data;
-}*/
-/*uint8_t DF::Read() {
-  uint8_t data = 0;
-  uint8_t bit = 0x80;
-  while(bit) {
-    PINB = 1<<sck;             // SCK ↑
-    _delay_us(0.5);              // ✅ Hold/setup time
-    if(PINB & 1<<miso) data |= bit;  // Sample stable rising edge
-    PINB = 1<<sck;             // SCK ↓
-    bit >>= 1;
-  }
-  return data;
-}*/
 uint8_t DF::Read() {
-  uint8_t data = 0;
-  uint8_t bit = 0x80;
-  while(bit) {
-    PINB = 1<<PIN_SCK;                    // SCK ↑
-    asm volatile("nop\nnop\nnop");    // 3 cycles delay (~0.4µs @8MHz)
-    if(PINB & 1<<PIN_MISO) data |= bit;   // Sample stable
-    PINB = 1<<PIN_SCK;                    // SCK ↓
-    bit >>= 1;
-  }
-  return data;
+  return usi_spi_transfer(0xFF);  // Dummy byte to clock data out
 }
-
 
 
 /***************************************************
@@ -550,6 +518,8 @@ ISR (TIMER0_COMPA_vect) {
 
 
   char sample = DataFlash.ReadByte();   // Read the sample
+  sei();
+  
   OCR1B = sample;                       // Put the sample in the duty cycle thing
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
   //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
@@ -711,6 +681,10 @@ void loop() {}  // Never reached
  *  Setup
  *******************************************************************************************************************************/
 void setup() {
+
+  usi_spi_init();
+
+
   DataFlash.Setup();
   DataFlash.Wake(); // DataFlash.PowerDown(false);
   load_sizes_from_flash();
