@@ -221,28 +221,6 @@ void DF::Write (uint8_t data) {
  ***************************************************
  * 
  */
-/*
-void DF::Busy () {
-  digitalWrite(cs, 0);
-  Write(READSTATUS);
-  while ((Read() & 1) != 0);
-  digitalWrite(cs, 1);
-}*/
-// apparenlty the one above coudl be problmenatic
-/*void DF::Busy() {
-  digitalWrite(cs, LOW);
-  Write(READSTATUS);
-  uint8_t cnt=100; while((Read()&1) && cnt--);
-  digitalWrite(cs, HIGH);
-}*/
-/*void DF::Busy() {
-  digitalWrite(cs, LOW);
-  Write(READSTATUS);
-  uint8_t cnt=100;
-  while((Read()&1) && cnt--) {}  // Escape if stuck
-  digitalWrite(cs, HIGH);
-}*/
-
 void DF::Busy() {
   uint8_t cnt=50;
   digitalWrite(PIN_CS, LOW);
@@ -332,29 +310,6 @@ void DF::BeginRead (uint32_t start) {
  ***************************************************
  * 
  */
-/*uint8_t DF::Read () {
-  uint8_t data = 0;
-  uint8_t bit = 0x80;
-  while (bit) {
-    PINB = 1<<sck;                        // sck high
-    if (PINB & 1<<miso) data = data | bit;
-    PINB = 1<<sck;                        // sck low
-    bit = bit>>1;
-  }
-  return data;
-}*/
-/*uint8_t DF::Read() {
-  uint8_t data = 0;
-  uint8_t bit = 0x80;
-  while(bit) {
-    PINB = 1<<sck;             // SCK ↑
-    _delay_us(0.5);              // ✅ Hold/setup time
-    if(PINB & 1<<miso) data |= bit;  // Sample stable rising edge
-    PINB = 1<<sck;             // SCK ↓
-    bit >>= 1;
-  }
-  return data;
-}*/
 uint8_t DF::Read() {
   uint8_t data = 0;
   uint8_t bit = 0x80;
