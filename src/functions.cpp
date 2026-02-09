@@ -203,7 +203,7 @@ void playTestTone_ms_freq(uint16_t _ms, uint16_t _freq_hz) {
 
     // Phase 2: Calculate TOP for target frequency (64kHz base / TOP)
     uint16_t top = 64000 / _freq_hz;
-    if (top > 255) top = 255;           ///< Safety: prevent div0/overflow
+    if (top > 255) top = 255;           ///> Safety: prevent div0/overflow
 
     // Phase 3: Timer1 Fast PWM Mode 15 (TOP=OCR1C)
     GTCCR = (1<<COM1B0) | (1<<PWM1B);           // PWM B, toggle OC1B on match
