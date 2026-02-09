@@ -33,55 +33,47 @@ Speaker is driven by a MMBT3904 which grounds the -ve side of the speaker (via t
 
 
 ## Audio File
+
 setup audio as 8.000 kHz, 8-bit, Mono
  
-Length is C5C2 apparently which is 50626
-
 The WAV file format contains a 44-byte header followed by the raw data so i need to skip the first 44 bytes.
 
-So my length is 0xC5C2 - 44 
-so 50626 - 44 = 50582
+At the begining of the file, it has the offsets of the beginning of each audio file and then the last offset is the end of the last file.
+
+So in this case:
+```
+192 27334 63602 75056 92798 115042 138252 146312 158438 172244 189812 208390 220122 227092 242000 254260 259746 269260 281408 298566 316292 330928 340366 349978 363702 380922 392626 401676 421900 441886 458094 472142 510028 526826 540926 562508 574854 583608 597122 612476 625210 637150 664496 676116 687472 701142
+```
+687472 is the beginning of the last audio file and 701142 is the end of that file.
+
+load_sizes_from_flash(); loads it from the flash
 
 
-Maybe create a script that will take a directory of wav files, and dump them in to the binary file (without the 44 byte header)
-and spit out the start location and length of the sounds that have been put in there.
+Created a script to do this for me:
+```bash
+$ ./wav_to_bin.sh
+Generated output.bin (701142 bytes)
+Offsets (46 entries + 2 nulls): 192 27334 63602 75056 92798 115042 138252 146312 158438 172244 189812 208390 220122 227092 242000 254260 259746 269260 281408 298566 316292 330928 340366 349978 363702 380922 392626 401676 421900 441886 458094 472142 510028 526826 540926 562508 574854 583608 597122 612476 625210 637150 664496 676116 687472 701142
+```
 
-new tone 3A2E4 length
-
-uint32_t Sizes[5] = { 0,        // Chunk 1: first 2s
-                      16000,    // Chunk 2: seconds 3-4  
-                      32000,    // Chunk 3: seconds 5-6
-                      48000,    // Chunk 4: seconds 7-8
-                      0 };      // End (unused)
-
-
-                      assumes standard 44-byte PCM headers as per your Audacity workflow; test with hexdump -C output.bin | head for clean 8-bit samples post-header
-
-I created a script for this, I will have to include it.
-
-
-es, absolutely use Audacity to filter/EQ your samples—even with the series capacitor, this delivers the biggest volume boost (8–15 dB perceived) by concentrating energy in your YS-SBZ piezo's 2.5–3 kHz resonance band.
+This is <mark>highlighted</mark> like in Dokuwiki.
+Or use <code>gray highlight</code> for code-like emphasis.
 ​
 
-Quick Audacity Steps
-Import WAV → Resample to exactly 8 kHz mono (matches your 8 kHz playback).
+### Quick Audacity Steps
 
-Effect > Filter Curve EQ:
+Meh, i ended up using duke nukem sounds but this is a way to apparently make the sounds sound ok on the speaker:
+1.  Import WAV → Resample to exactly 8 kHz mono (matches your 8 kHz playback).
+2.  Effect > Filter Curve EQ:
+3.  High-pass: +20 Hz, steep rolloff to cut <1 kHz rumble.
+4.  Peak boost: +10–15 dB at 2.7 kHz (Q=1.5 width).
+5.  Normalize to -1 dB peak.
+6.  Export as raw 8-bit unsigned PCM → Concatenate to flash.
 
-High-pass: +20 Hz, steep rolloff to cut <1 kHz rumble.
-
-Peak boost: +10–15 dB at 2.7 kHz (Q=1.5 width).
-
-Normalize to -1 dB peak.
-
-Export as raw 8-bit unsigned PCM → Concatenate to flash.
-
-Expected Gains
-Pre-EQ: Broad voice (peaks ~500 Hz–2 kHz) → weak piezo drive.
-
-Post-EQ: High-mid focused → max SPL resonance → "much louder" like tone tests.
-
-Cap + EQ + DC center code = optimal without voltage changes. Test one sample first!
+For the filter, you can just import this filter under Effect > Filter Curve EQ neepneep-piezo-eq.txt:
+```
+FilterCurve:f0="20" f1="50" f2="100" f3="2600" f4="2700" f5="2800" f6="4000" f7="8000" FilterLength="8191" InterpolateLin="0" InterpolationMethod="B-spline" v0="-24" v1="-20" v2="-8" v3="8" v4="12" v5="8" v6="2" v7="0"
+```
 
 
 ## Installation/Programming
