@@ -48,6 +48,9 @@ The speaker i generally use is:
 The transistor thing TRANS NPN 40V 200mA SOT-23
   - MMBT3904(RANGE:100-300) (LCSC C20526)
 
+Should probably change out the transistor for a mosfet as i think it drives the speaker harder, this one should be a drop in replacement:
+  -  BSS138  
+
 I removed the diodes and it seemed to program fine but i did have some issues programming the flash on the one I removed the diodes from, not entirely sure but maybe this will be a problem in the future with the boards that don't have the diodes.
 
 
