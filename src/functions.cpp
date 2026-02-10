@@ -205,11 +205,58 @@ void playTestTone_ms_freq(uint16_t _ms, uint16_t _freq_hz) {
     uint16_t top = 64000 / _freq_hz;
     if (top > 255) top = 255;           ///> Safety: prevent div0/overflow
 
+    /**
+     * @brief **Phase 3: Timer1 Fast PWM Mode 15** - Configures 125kHz PWM output on PB0 (OC1B).
+     * 
+     * **Mode 15**: TOP=OCR1C (max 255). Frequency = 125kHz ÷ OCR1C. Perfect for audio/test tones.
+     */
     // Phase 3: Timer1 Fast PWM Mode 15 (TOP=OCR1C)
+
+    /**
+     * @brief Enables **PWM on OC1B (PB0)** with toggle-on-match (50% duty automatic).
+     * 
+     * **GTCCR options**:
+     * | Bit  | Name   | Your Setting | Options |
+     * |------|--------|--------------|---------|
+     * | 5-4  | COM1B1:0 | `00`     | `01`=Toggle OC1B, `10`=Clear↑Set↓, `11`=Set↑Clear↓ |
+     * | 3    | PWM1B  | `1`      | `0`=Timer, `1`=**PWM** |
+     * 
+     * **`(1<<COM1B0) | (1<<PWM1B)`** = `COM1B1:0=01, PWM1B=1` → Toggle PB0 @50% duty
+     */
     GTCCR = (1<<COM1B0) | (1<<PWM1B);           // PWM B, toggle OC1B on match
-    TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  // /512 prescale (64MHz→125kHz)
-    OCR1C = top;                                // Frequency TOP
-    OCR1B = top / 2;                             // 50% duty cycle
+
+    /**
+     * @brief **512x prescale**: 64MHz PLL → **125kHz Timer1 clock**.
+     * 
+     * **TCCR1 Clock Options** (CS13:0):
+     * | Binary | Divisor | 64MHz→     |
+     * |--------|---------|-------------|
+     * | `1101` | **512** | **125kHz**★ |
+     * | `1011` | 128     | 500kHz     |
+     * | `0110` | 64      | 1MHz       |
+     * | `0101` | 32      | 2MHz       |
+     * | `0010` | 8       | 8MHz       |
+     * | `0000` | **1**   | **STOP**   |
+     */
+    TCCR1 = (1<<CS13) | (1<<CS11) | (1<<CS10);  ///< **CS13:0=1101** = /512 (64MHz→125kHz)
+
+    /**
+     * @brief **Frequency TOP**: PWM freq = 125kHz ÷ OCR1C.
+     * 
+     * **Examples**:
+     * - `OCR1C=125` → **1kHz** tone (your test tone)
+     * - `OCR1C=255` → **490Hz** carrier (your audio PWM)
+     * - `OCR1C=64`  → **~2kHz** beep
+     */    
+    OCR1C = top;                                ///< Frequency TOP (Mode 15)
+
+    /**
+     * @brief **50% duty cycle** - automatic with COM1B0 toggle mode.
+     * 
+     * With `COM1B1:0=01` (toggle): **OCR1B ignored** - hardware flips PB0 every TOP match.
+     * Perfect square wave, no software duty adjustment needed.
+     */
+    OCR1B = top / 2;                             ///< 50% duty (informational)
 
     // FIXED: cycles = ms * 1000 (microseconds total)
     // Phase 4: Blocking play duration (precise µs timing)
@@ -217,21 +264,18 @@ void playTestTone_ms_freq(uint16_t _ms, uint16_t _freq_hz) {
     for(volatile uint32_t i = 0; i < total_us; i++) {
       _delay_us(1);  // Calibrated 1µs per iteration
     }
-
-    // Stop
-    TCCR1 = 0; GTCCR = 0; OCR1B = 0;
-    PINB |= (1<<4);
-    pinMode(PIN_SPEAKER, INPUT);
-
+ 
     // Phase 5: CRITICAL SAFE SHUTDOWN SEQUENCE (prevents clicks/pops)
-  // apparently the way to clear it
-  // In stop section, replace with:
+    // apparently the way to clear it
+    // In stop section, replace with:
+    /// @todo didn't i go around stopping using TCCR1=0 ?
     TCCR1 = 0;       ///> Stop timer clock FIRST (safe even with TOP=0)
     GTCCR = 0;       ///> Disable PWM modes
     OCR1C = 0;       ///> NOW safe: clear TOP
     OCR1B = 0;       ///> Clear duty
     PLLCSR &= ~(1<<PCKE);  ///> Disable PLL (back to system clock: 9.6/1.2MHz)
-    PINB |= (1<<4);         ///> Force PB4 HIGH (silence)  ****** I think i shouldn't do this, it should be PB4 not referenced as just 4???
+    /// @todo Look at PINB |= (1<<4), this should respect the PIN_SPEAKER directive... ?
+    PINB |= (1<<PIN_SPEAKER);         ///> Force PB4 HIGH (silence)  ****** I think i shouldn't do this, it should be PB4 not referenced as just 4???
     pinMode(PIN_SPEAKER, INPUT);   ///>  High-Z input (zero power draw)
 
  

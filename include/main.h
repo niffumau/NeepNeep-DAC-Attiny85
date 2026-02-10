@@ -10,7 +10,7 @@
 // Debug Parameters
 
 //#define WIPE_ATTINY            /// used to entirely wipe the ATTINY
-//#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
+#define DEBUG_FIXED_8S    // this is to debug the timer is intervals of 8 seconds
 //#define DEBUG_NO_DELAY
 
 //#define DEBUG_TONE  1          // debug directly with a tone

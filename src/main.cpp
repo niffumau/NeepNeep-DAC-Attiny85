@@ -143,48 +143,6 @@ class DF {
     void WriteEnable(void);
 };
 
-/************************************************************************************//**
- * @brief Sets up the flash chip thing
- * 
- * 
- */
-/*boolean DF::Setup_OLD () {
-  uint8_t manID, devID;   // Manufacturer ID and Device ID
-  boolean _return = true;
-  pinMode(PIN_CS, OUTPUT); digitalWrite(PIN_CS, HIGH);    
-  pinMode(PIN_SCK, OUTPUT);
-  pinMode(PIN_MOSI, OUTPUT);
-  pinMode(PIN_MISO, INPUT);
-  digitalWrite(PIN_SCK, LOW); digitalWrite(PIN_MOSI, HIGH);
-  delay(1);
-  digitalWrite(PIN_CS, LOW);
-  delay(100);
-  Write(READID); Write(0);Write(0);Write(0);
-  manID = Read();
-  (void)manID;        // This tells the compiler to implicity ignore this value
-  //Read();  // Dummy byte 1
-  //Read();  // Dummy byte 2  
-
-  if (manID != 0xEF) {
-    _return = false;
-    warning_alarm(4);
-  }
-
-  devID = Read();
-  //  W25Q16 → 0x15
-  //  W25Q32 → 0x16
-  digitalWrite(PIN_CS, HIGH);
-  
-  //if (devID != 0x15) while(1) warning_alarm(5);
-  if (devID != 0x15 && devID != 0x16) {
-    _return = false;
-    warning_alarm(5);
-  }
-
-
-  //return (devID != 0x15 && devID != 0x16); // Found correct device Returns True if the deviceID is 0x15
-  return _return;
-}*/
 
 boolean DF::Setup() {
   return Setup_READID();
@@ -581,6 +539,9 @@ void load_sizes_from_flash(void) {
  * 
  * Reads flash byte → OCR1B PWM duty. Ends playback at Count=0 (Sleeps flash, disables ISR).
  * Safety: Infinite alarm if Count > MAX_SAFE_SAMPLES.
+ * 
+ * @note If Timer1 is disabled the ISR won't be run so there is no point checking it here as
+ * if the ISR fires it has to have been running.  Maybe check if the PWM for timer0 is 
  */
 ISR (TIMER0_COMPA_vect) {
 
@@ -592,33 +553,30 @@ ISR (TIMER0_COMPA_vect) {
     }
   }
 
-  // Maybe check that data read is ok ? 
-
-
-  char sample = DataFlash.ReadByte();   // Read the sample
-  OCR1B = sample;                       // Put the sample in the duty cycle thing
+  char sample = DataFlash.ReadByte();   ///> Read the sample
+  OCR1B = sample;                       ///> Put the sample in the duty cycle thing
   // This is suppose to kinda normalise it but i'm not convinced it was a good idea.
   //int8_t signed_sample = (int8_t)DataFlash.ReadByte() - 128;  // -128 to +127
   //OCR1B = (uint8_t)(signed_sample + 128);  // 0 to 255, centered 128 avg
   //wdt_reset();
 
+  ///> @note We could recheck that Timer0 is setup correctly but it should already be setup so
+  ///> I will not do that here because it is done later.
+  ///> Setup PWM carrier + Timer0 hardware:
+  ///> TCCR1 = 1<<CS10; OCR1C = 255;  // 250kHz carrier running
+  ///> TCCR0A = 3<<WGM00;            // Timer0 configured
+  ///> OCR0A = 124;                  // Match point set
+
   // Apparently one of these two shoudl work, possibly the second one breaks the code? //
-  if (Count == 0) {
-    DataFlash.EndRead();
-    DataFlash.Sleep();  // DataFlash.PowerDown(true);
+  if (Count == 0) {                     ///> If we have no samples left
+    DataFlash.EndRead();                ///> End flash read
+    DataFlash.Sleep();                  ///> Put the flash to sleep
   
-    TIMSK &= ~(1<<OCIE0A);
-    StayAwake = false;
+    TIMSK &= ~(1<<OCIE0A);              ///> Only Disable Timer1 ISR
+    StayAwake = false;                  ///> Set StayAwake to false
     return;
   }
   Count--;
-
-  /*if (--Count == 0) {
-    DataFlash.EndRead();
-    TIMSK = 0;
-    StayAwake = false;
-  }*/
-
 
 }
 
@@ -642,15 +600,15 @@ ISR(WDT_vect) {
 
 /*******************************************************************************************************************************
  *  Play Random Sample
- ********************************************************************************************************************************
- * Plays a random sample
- */
+ ******************************************************************************************************************************/
 
 /**
  * @brief Core playback: Random sample → 250kHz PWM (Timer1 PLL64x) modulated @8kHz ISR.
  * 
  * Truncates >MAX_SAFE_SAMPLES. 1s timeout safety (alarms on stall). Tri-states pins post-play.
  * DEBUG_FIXED_WAV forces specific sample.
+ * 
+ * @note I was concerned that the PWM output from Timer1
  */
 void play_random_sample() {
   pinMode(PIN_SPEAKER, OUTPUT);
@@ -666,43 +624,62 @@ void play_random_sample() {
 
   /// Create Random Number ///
   // this wone worked but apparenlty it is broken for low numbers?
-  Play = random() % Num_Samples + 1;  // Picks 1-4 uniformly
+  Play = random() % Num_Samples + 1;  ///> Pick a random Sample
   //Play = ((uint16_t)rand() >> 8) % num_sizes + 1; // apparnelty this fixes the problem with random?
 
-  #if defined(DEBUG_FIXED_WAV)      // Force a fixed wave file play
-  Play = DEBUG_FIXED_WAV;
+  #if defined(DEBUG_FIXED_WAV)      
+  Play = DEBUG_FIXED_WAV;             ///> Force a fixed wave file play if DEBUG_FIXED_WAV is defined
   #endif
 
   StayAwake = true;
-  Count = Samples[Play] - Samples[Play-1];
+  Count = Samples[Play] - Samples[Play-1];  ///> Set the number of samples to play
 
-  if(Count > MAX_SAFE_SAMPLES) {      // Check if the sample is longer than the maximum number of samples?
-    Count = MAX_SAFE_SAMPLES;         // If so, trunkate teh sample to the maximum length
-    playTestTone_ms_freq(20, 440);    // Brief "warning" beep
+  if(Count > MAX_SAFE_SAMPLES) {      ///> Check if the sample is longer than the maximum number of samples?
+    Count = MAX_SAFE_SAMPLES;         ///> If so, trunkate teh sample to the maximum length
+    playTestTone_ms_freq(20, 440);    ///> Brief "warning" beep
   }
 
-  PLLCSR = 1<<PCKE | 1<<PLLE;       // Enable 64 MHz PLL and use as source for Timer1
+  PLLCSR = 1<<PCKE | 1<<PLLE;       ///> Enable 64 MHz PLL and use as source for Timer1
 
   // Set up Timer/Counter1 for PWM output
-  TIMSK &= ~(1<<OCIE0A);            // Timer Interrupts Off
-  TCCR1 = 1<<CS10;                  // 1:1 prescale
-  GTCCR = 1<<PWM1B | 2<<COM1B0;     // PWM B, clear on match
-  OCR1B = 128;                      // 50% duty at start
-  OCR1C = 255;                      // 250kHz carrier, which is the default
+  TIMSK &= ~(1<<OCIE0A);            ///> Disable ONLY timer0 Compare Match A Interrupts
+  TCCR1 = 1<<CS10;                  ///> 1:1 prescale
+  GTCCR = 1<<PWM1B | 2<<COM1B0;     ///> PWM B, clear on match
+  OCR1B = 128;                      ///> 50% duty at start
+  OCR1C = 255;                      ///> 250kHz carrier, which is the default
 
   // Set up Timer/Counter0 for 8kHz interrupt to output samples.
-  TCCR0A = 3<<WGM00;                // Fast PWM
-  TCCR0B = 1<<WGM02 | 2<<CS00;      // 1/8 prescale
-  OCR0A = 124;                      // Divide by 1000
+  TCCR0A = 3<<WGM00;                ///> Fast PWM
+  TCCR0B = 1<<WGM02 | 2<<CS00;      ///> 1/8 prescale
+  OCR0A = 124;                      ///> Divide by 1000
 
   pinMode(PIN_SPEAKER, OUTPUT);
 
-  
+  /**
+   * @brief **Starts continuous SPI flash read** at start of selected audio sample.
+   * 
+   * **Critical**: Opens DataFlash read session for ISR(TIMER0_COMPA_vect) streaming.
+   * 
+   * **Address math**:
+   * - `Samples[Play-1]` = **sample start offset** (uint32_t from flash table)
+   * - `Play` = random sample index (1-based from `random() % Num_Samples + 1`)
+   * - Reads sequential 8-bit samples → `DataFlash.ReadByte()` in ISR
+   * 
+   * **Sequence**:
+   * 1. `DataFlash.Wake()` - Exit flash sleep
+   * 2. `BeginRead(Samples[Play-1])` ← **CS LOW + 24-bit addr**
+   * 3. `TIMSK |= _BV(OCIE0A)` - ISR starts @8kHz
+   * 4. ISR: `ReadByte() → OCR1B duty → Count--` → **Audio streaming**
+   * 5. `Count==0` → `EndRead()` + ISR disable
+   * 
+   * @pre `Samples[]` loaded via `load_sizes_from_flash()`, `Play` valid (1..Num_Samples)
+   * @note Continuous read mode - no address increment, ISR handles sequential bytes
+   */
+  DataFlash.BeginRead(Samples[Play-1]);     ///< Start sample @ offset Samples[Play-1]
 
-  DataFlash.BeginRead(Samples[Play-1]);
+  //TIMSK = 1<<OCIE0A;              // this is bad, it overwrites other bits...
+  TIMSK |= _BV(OCIE0A);             ///> Enable compare match, Sets ONLY bit 1 = OCIE0A = 1, Timer0_COMPA_vect ISR ENABLED, don't overwrite other bits
 
-  TIMSK = 1<<OCIE0A;              // Enable compare match
-  //TIMSK |= _BV(OCIE0A);  // Enable (OR, don't overwrite other bits)
 
   //wdt_reset();
   // ADD: Timeout safety (ISR not firing? Escape after ~1s)
