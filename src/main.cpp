@@ -608,7 +608,7 @@ ISR(WDT_vect) {
  * Truncates >MAX_SAFE_SAMPLES. 1s timeout safety (alarms on stall). Tri-states pins post-play.
  * DEBUG_FIXED_WAV forces specific sample.
  * 
- * @note I was concerned that the PWM output from Timer1
+ * @note I was concerned that the PWM output from Timer1 might affect reading from the flash but it doesn't
  */
 void play_random_sample() {
   pinMode(PIN_SPEAKER, OUTPUT);
