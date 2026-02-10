@@ -618,9 +618,9 @@ void play_random_sample() {
     _delay_us(20);
 
   }*/
-  DataFlash.Setup();
+  DataFlash.Setup();                  ///> Setup the flash for reading
 
-  DataFlash.Wake(); // DataFlash.PowerDown(false);
+  DataFlash.Wake();                   ///> Wake up the flash if it is sleeping
 
   /// Create Random Number ///
   // this wone worked but apparenlty it is broken for low numbers?
@@ -675,7 +675,7 @@ void play_random_sample() {
    * @pre `Samples[]` loaded via `load_sizes_from_flash()`, `Play` valid (1..Num_Samples)
    * @note Continuous read mode - no address increment, ISR handles sequential bytes
    */
-  DataFlash.BeginRead(Samples[Play-1]);     ///< Start sample @ offset Samples[Play-1]
+  DataFlash.BeginRead(Samples[Play-1]);     ///> Start sample @ offset Samples[Play-1]
 
   //TIMSK = 1<<OCIE0A;              // this is bad, it overwrites other bits...
   TIMSK |= _BV(OCIE0A);             ///> Enable compare match, Sets ONLY bit 1 = OCIE0A = 1, Timer0_COMPA_vect ISR ENABLED, don't overwrite other bits
