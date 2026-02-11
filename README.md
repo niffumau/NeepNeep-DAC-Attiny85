@@ -1,3 +1,8 @@
+# NeepNeep DAC  ATtiny85
+
+[[_TOC_]]
+
+
 ## General
 
 Test update 
@@ -52,6 +57,8 @@ Should probably change out the transistor for a mosfet as i think it drives the 
   -  BSS138  
 
 I removed the diodes and it seemed to program fine but i did have some issues programming the flash on the one I removed the diodes from, not entirely sure but maybe this will be a problem in the future with the boards that don't have the diodes.
+
+![NeepNeep-DAC-V2](NeepNeep-DAC-V2.png)
 
 
 The pins i use for the Flash chip are the standard pins for programming the ATTiny along with the chip select pin:
