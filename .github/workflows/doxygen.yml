@@ -3,14 +3,19 @@ on: [push, pull_request]
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
     - uses: actions/checkout@v4
-    - name: Doxygen
-      run: doxygen Doxyfile  # Or use separate doxygen action
-    - name: Upload artifact
+    - name: Install Doxygen
+      run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+    - name: Generate Doxygen docs
+      run: doxygen Doxyfile
+    - name: Upload Pages artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: documentation/html  # Your output
-    - name: Deploy
+        path: documentation/html  # Adjust to your OUTPUT_DIRECTORY/html
+    - name: Deploy to Pages
       uses: actions/deploy-pages@v4
