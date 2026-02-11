@@ -147,16 +147,30 @@ I use VSCode. and the USBASP programmer.
     In VSCode, the platformio button.  Go under attiny85 > General > Upload
 
 Programming Header
-| Pin | Name | Notes |
-|----------|----------|----------|
-| G   | GND  | Ground  |
-| R   | RST  | Reset  |
-| O   | MO  | MOSI  |
-| C   | CLK  | Clock  |
-| V   | V  |  3.3V |
-| I   | MISO  | MISO  |
+| Pin | Name | Notes | Pin on Attiny |
+|----------|----------|----------|-----|
+| G   | GND  | Ground  | GND (6)|
+| R   | RST  | Reset  | PB5/Reset (5) |
+| O   | MO  | MOSI  | PB0 (4) |
+| C   | CLK  | Clock  | PB2/SCK (3) |
+| V   | V  |  3.3V | 3.3V (2) |
+| I   | MISO  | MISO  | PB1 |
 
 The header is a 1x06_P1.27mm header, I use a clamp that has 1.27mm pitch pogo pins on it that i can just clip on.
+
+The Winbond flash chip is connected to:
+
+| W25Q32 | AtTiny  | Other      |
+|-------:|--------:|:----------:|
+|  CS (1)|  PB3 (2)| 10k to VCC |
+|  DO (2)|  PB1 (6)|            |
+| IO2 (3)| N/A     | VCC        |
+| GND (4)| N/A     | GND        |
+|  DI (5)| PB0 (5) | 10k to VCC |
+| CLK (6)| PB2 (7) | 10k to VCC |
+| IO3 (7)|         | VCC        |
+| VCC (8)|         | VCC        |
+
 
 
 ## Programming the Flash chip
