@@ -24,7 +24,6 @@ I have tried to convert this all to USI but it conflicts with my ISR routine I t
 # Hardware
 Essentiall this is a ATtiny85 with a flash chip.  The PCB design is 
   - https://github.com/niffumau/NeepNeep-KiCAD
-  - https://gitlab.niffum.net/kicad/neepneep-dac-kicad
 
 I am a little concerned that i'm programming the ATtiny85 with 5V rail, apparenlty can program it with a 3.3v programmer which is probaly what i shoudl be looking into.  Yes, i'm pretty sure that its not really tollerant of 5V so ive moved to using a USBASP that is 3.3v.
 
