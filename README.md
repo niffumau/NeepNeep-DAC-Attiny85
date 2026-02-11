@@ -11,7 +11,24 @@ The price of the ATtiny85 is like $2.50+, to bring the cost down i should look a
 ## ATtiny412
 
 things to consider/remmber/note:
-  - Uses UPDI to rpogram
+  - Uses UPDI to repogram
+
+
+| Parameter | ATtiny85 | ATtiny412 |
+| --------- | -------- | --------- |
+| Flash     | 8 KB     | 4 KB      |
+| SRAM      | 512 B    | 256 B     |
+| EEPROM    | 512 B    | 128 B     |
+
+
+Peripherals and I/O
+ATtiny85
+  * Two 8‑bit timers, basic 4‑channel 10‑bit ADC, hardware SPI + TWI (I²C).
+  * Very “oldest‑generation AVR‑Tiny”‑style; peripherals vary more between old‑series parts.
+
+ATtiny412
+  * Two 16‑bit timers, 6‑channel 10‑bit ADC, USART → hardware UART, USI‑style SPI, and I²C in the same 8‑pin SOIC.
+  * Implements USART with TX/RX pins (unlike ATtiny85), which is especially handy for debugging or extra serial I/O.
 
 
 # General
