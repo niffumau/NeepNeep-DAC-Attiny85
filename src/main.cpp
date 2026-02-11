@@ -1,8 +1,3 @@
-/* 
- * Plays random samples from Flash
-
- */
-
 /**
  * @file
  * @brief ATTiny13A/85 audio player: Plays random raw audio samples from Winbond W25Q SPI DataFlash.
@@ -14,9 +9,9 @@
 
 #include <Arduino.h>
 #include <avr/sleep.h>
-#include <avr/wdt.h>  // For Watchdog Timer
-#include <stdlib.h>   // For rand() / srand()
-#include <util/delay.h>  // _delay_us()
+#include <avr/wdt.h>          // For Watchdog Timer
+#include <stdlib.h>           // For rand() / srand()
+#include <util/delay.h>       // _delay_us()
 
 
 #include "main.h"

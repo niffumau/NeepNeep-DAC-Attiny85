@@ -3,7 +3,7 @@
 [[_TOC_]]
 
 
-## General
+# General
 
 Test update 
 
@@ -21,7 +21,7 @@ http://www.technoblogy.com/show?2XJD
 
 I have tried to convert this all to USI but it conflicts with my ISR routine I think... it didn't go well.
 
-## Hardware
+# Hardware
 Essentiall this is a ATtiny85 with a flash chip.  The PCB design is 
   - https://github.com/niffumau/NeepNeep-KiCAD
   - https://gitlab.niffum.net/kicad/neepneep-dac-kicad
@@ -74,7 +74,7 @@ the pin for the speaker i use is:
   #define PIN_SPEAKER   PB4
 ```
 
-## Audio File Binary
+# Audio File Binary
 
 Audio files shoudl be 8 kHz, 8-Bit mono.
  
@@ -115,7 +115,7 @@ This script will just take all the wav files in the directory, strip the 44byte 
 
 ​
 
-### Quick Audacity Steps
+## Quick Audacity Steps
 
 Meh, i ended up using duke nukem sounds but this is a way to apparently make the sounds sound ok on the speaker:
 1.  Import WAV → Resample to exactly 8 kHz mono (matches your 8 kHz playback).
@@ -131,10 +131,13 @@ FilterCurve:f0="20" f1="50" f2="100" f3="2600" f4="2700" f5="2800" f6="4000" f7=
 ```
 
 
-## Installation/Programming
+# Installation/Programming
 
+This comes in two parts:
+1.  Programming the ATTiny
+2.  Programming the Flash Chip
 
-### Programming the ATtiny85
+## Programming the ATtiny85
 
 I use VSCode. and the USBASP programmer.
 
@@ -157,13 +160,16 @@ Programming Header
 The header is a 1x06_P1.27mm header, I use a clamp that has 1.27mm pitch pogo pins on it that i can just clip on.
 
 
+## Programming the Flash chip
 
+There are a number of ways you can program the flash chip.
 
+I use a flash chip programmer (CH321a) to program the chip by using a clip thing that clips over the chip while it is already on the board.  On the neepneep board i ground the ATtiny85's reset pin using a wire to Ijumper on the programming interface pin thing between R and G (they are next to eachother.) otherwise the ATtiny85 interferes with programming the flash chip.
 
-### Programming the Flash chip
-
-I use a flash chip programmer to program the chip ch341 and i use a chip to clip on the chip.  On the neepneep board i ground the ATtiny85's reset pin using a wire to jumper on the programming interface pin thing between R and G (they are next to eachother.)
-
+Sometimes i have found that its been really difficult to reprogram the flash chip and maybe the cause was the ATtiny85, even though i had held the reset on that down so i created a define in main.h you can set so you program the ATtiny85 with essentially an empty program:
+```c
+#define WIPE_ATTINY            /// used to entirely wipe the ATTINY
+```
 
 
 
