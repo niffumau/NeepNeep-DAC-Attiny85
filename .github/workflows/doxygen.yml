@@ -6,8 +6,11 @@ jobs:
     permissions: write-all
     steps:
     - uses: actions/checkout@v4
-    - uses: DenverCoder1/doxygen-github-pages-action@v2.0.0
+    - name: Doxygen
+      run: doxygen Doxyfile  # Or use separate doxygen action
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: gh-pages
-        folder: documentation/html
+        path: documentation/html  # Your output
+    - name: Deploy
+      uses: actions/deploy-pages@v4
