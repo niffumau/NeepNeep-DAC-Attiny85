@@ -62,15 +62,19 @@ I removed the diodes and it seemed to program fine but i did have some issues pr
 
 
 The pins i use for the Flash chip are the standard pins for programming the ATTiny along with the chip select pin:
+```c
   #define PIN_MOSI PB0
   #define PIN_MISO PB1
   #define PIN_SCK PB2
   #define PIN_CS PB3
+```
+
 the pin for the speaker i use is:
+```c
   #define PIN_SPEAKER   PB4
+```
 
-
-## Audio File
+## Audio File Binary
 
 Audio files shoudl be 8 kHz, 8-Bit mono.
  
@@ -86,7 +90,9 @@ So in this case:
 
 <code>load_sizes_from_flash();</code> loads it from the flash.  Basically reads uint32_t values which represent the offsets untill get gets nulls..  I can't really remember how i did it but looking at the code looks like the when its reading the offsets, if the first byte it reads is a null then it stopps.. 
 
-It is little-endian so you read the bytes ass about.  An example, if you store the value 192decimal as an offset, 192 converted to hex is <code>C0</code> but its 32 bits so it will be 00 00 00 C0 but it will be stored in the binary file as <code>C0 00 00 00</codde>
+The data is stored in little-endian format, so the least significant byte comes first.
+
+An example, if you store the value 192decimal as an offset, 192 converted to hex is <code>C0</code> but its 32 bits so it will be 00 00 00 C0 but it will be stored in the binary file as <code>C0 00 00 00</codde>
 
 so the header of the above offsets are:
 ```
@@ -127,6 +133,9 @@ FilterCurve:f0="20" f1="50" f2="100" f3="2600" f4="2700" f5="2800" f6="4000" f7=
 
 ## Installation/Programming
 
+
+### Programming the ATtiny85
+
 I use VSCode. and the USBASP programmer.
 
 1.  For new ATtiny85's, you will most likely have to set the fuses.
@@ -135,9 +144,26 @@ I use VSCode. and the USBASP programmer.
 2.  Upload the code.
     In VSCode, the platformio button.  Go under attiny85 > General > Upload
 
-## Programming the Flash chip
+Programming Header
+| Pin | Name | Notes |
+|----------|----------|----------|
+| G   | GND  | Ground  |
+| R   | RST  | Reset  |
+| O   | MO  | MOSI  |
+| C   | CLK  | Clock  |
+| V   | V  |  3.3V |
+| I   | MISO  | MISO  |
+
+The header is a 1x06_P1.27mm header, I use a clamp that has 1.27mm pitch pogo pins on it that i can just clip on.
+
+
+
+
+
+### Programming the Flash chip
 
 I use a flash chip programmer to program the chip ch341 and i use a chip to clip on the chip.  On the neepneep board i ground the ATtiny85's reset pin using a wire to jumper on the programming interface pin thing between R and G (they are next to eachother.)
+
 
 
 
