@@ -71,12 +71,12 @@ W25Q32:
 Speaker is driven by a MMBT3904 which grounds the -ve side of the speaker (via the C of the transistor) with the postiive lead going to the 3.3v rail (2032 watch battery)
 
 The ATtiny85 I use
-  - ATTINY85-20SU (LCSC C31540447) $2.50 - Current chip
-  - ATtiny412 (LCSC C1338345) $1.14 - Possible Repacement
+  - ATTINY85-20SU (LCSC C31540447) $2.50 - Current chip $3.40 on JLCPCB
+  - ATtiny412 (LCSC C1338345) $1.14 - Possible Repacement $1.58 on JLCPCB
 
 The Flash chip
-  - W25Q32JVSSIQ (LCSC C179173)  $1.40  - Current chip
-  - W25Q80 (LCSC C14086) $0.93     - Possibly a cheaper replacement
+  - W25Q32JVSSIQ (LCSC C179173)  $1.40  - Current chip  #2.14 on JLCPCB
+  - W25Q80 (LCSC C14086) $0.93     - Possibly a cheaper replacement $1.29 on JLCPCB
 
 The speaker i generally use is:
   - YS-SBZ9032C03R16 (LCSC C409828) $0.34
