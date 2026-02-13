@@ -32,9 +32,12 @@
  *      - Requires external WDT ISR: `ISR(WDT_vect) { wdt_reset(); }`
  *      - Final wdt_enable(WDTO_8S) starts reset countdown—caller must reset/rearm
  *      - #DEBUG_NO_DELAY completely skips (for active debugging)
+ * @todo Possibly merge some of the things that both chips have in common, i can see that the wdt_enable(WDTO_8S) appears
+ * to be the same.
  */
 void sleep_function(void) {
-    #if !defined(DEBUG_NO_DELAY)
+
+  #if !defined(DEBUG_NO_DELAY)
     uint16_t time_max = TIME_MAX; 
     uint16_t time_min = TIME_MIN;
     uint16_t cycles = (rand() % (time_max - time_min + 1)) + time_min;
@@ -42,6 +45,9 @@ void sleep_function(void) {
     #if defined(DEBUG_FIXED_8S) 
     cycles = 1;
     #endif
+
+    
+  #ifdef __AVR_ATtiny85__
 
     for(uint16_t i = 0; i < cycles; i++) {
       wdt_reset();
@@ -56,5 +62,26 @@ void sleep_function(void) {
     }    
     wdt_enable(WDTO_8S);
     #endif
+
+  #elif defined(__AVR_ATtiny412__)
+    // STuff for the ATtiny412
+    for(uint16_t i = 0; i < cycles; i++) {
+      wdt_disable();  // Stop any prior WDT [web:112]
+      wdt_enable(WDTO_8S);  // 8s interrupt (WDIE auto-enabled) [web:109][web:112]
+      set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+      sleep_enable();
+      sleep_cpu();
+      sleep_disable();
+      wdt_reset();  // Reset counter
+    }
+    // Final reset timeout
+    wdt_disable();
+    wdt_enable(WDTO_8S);  // Arms reset (no interrupt) 
+    
+  
+  #else
+    #error "Unsupported board! Define ATTINY85 or ATTINY412."
+  #endif
+
 }
 

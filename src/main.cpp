@@ -586,6 +586,7 @@ volatile bool wdt_alarm = false;
 
 /**
  * @brief WDT wake ISR (8s)—just resets (handled by sleep_function).
+ * @note apparently i should add a wdt_reset() here but i'm not really convinced that i want to do that
  */
 ISR(WDT_vect) { 
   /*while(1) {
@@ -800,14 +801,6 @@ void setup() {
 void loop() {
   wdt_reset();
 
-  // Debug thing to play a sound every 8 times in the loop
-/*  if (count_loop <= 0){
-    count_loop=8;
-    playTestTone_ms_freq(50, 440);
-  } else --count_loop;*/
-
-
-  //while (true) {
 
     #if defined(DEBUG_TONE)
     playTestTone_ms_freq(50, 440);
@@ -819,9 +812,7 @@ void loop() {
 
 
     sleep_function();
-    
-   
-    // Ready for next iteration
-  //}
+  
+
 }
 #endif

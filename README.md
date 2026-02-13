@@ -10,6 +10,8 @@ The price of the ATtiny85 is like $2.50+, to bring the cost down i should look a
 
 ## ATtiny412
 
+NOTE that the pinouts are different, i thought they were the same but apparenlty they are not so i have to redesign the whole board...  so the V2 board doesn't work at the moment
+
 things to consider/remmber/note:
   - Uses UPDI to repogram
 
